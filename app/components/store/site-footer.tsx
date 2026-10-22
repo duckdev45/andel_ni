@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 
 import { Button } from '~/components/ui/button'
+import { SITE } from '~/lib/seo'
 
 export function SiteFooter({
   variant = 'full',
@@ -50,7 +51,7 @@ export function SiteFooter({
           >
             <FooterCol
               links={[
-                ['/#index', '物件索引'],
+                ['/#index', '本季選物'],
                 ['/#cats', '分類'],
                 ['/#brands', '品牌'],
               ]}
@@ -68,7 +69,7 @@ export function SiteFooter({
             <FooterCol
               links={[
                 ['/#about', 'AndelNI'],
-                ['#instagram', 'Instagram'],
+                [SITE.instagram, `Instagram ${SITE.instagramHandle}`],
                 ['#line', 'LINE 官方帳號'],
               ]}
               title='關於'
@@ -100,11 +101,17 @@ function FooterCol({
   return (
     <div className='flex flex-col gap-2.5'>
       <span className='font-mono text-xs text-muted-foreground'>{title}</span>
-      {links.map(([to, label]) => (
-        <Link key={label} to={to}>
-          {label}
-        </Link>
-      ))}
+      {links.map(([to, label]) =>
+        to.startsWith('http') ? (
+          <a key={label} href={to} rel='noopener noreferrer' target='_blank'>
+            {label}
+          </a>
+        ) : (
+          <Link key={label} to={to}>
+            {label}
+          </Link>
+        )
+      )}
     </div>
   )
 }

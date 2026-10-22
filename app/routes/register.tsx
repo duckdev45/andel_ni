@@ -27,8 +27,9 @@ import {
   type User,
   useUser,
 } from '~/lib/auth'
+import { privateMeta } from '~/lib/seo'
 
-export const meta: Route.MetaFunction = () => [{ title: '註冊｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('註冊')
 
 const STEPS = ['填寫會員資料', '輸入 Email 驗證碼，啟用帳號', '完成，開始購物']
 

@@ -18,9 +18,10 @@ import {
   readOrderRaw,
   SHIP_OPTIONS,
 } from '~/lib/mock/checkout'
+import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
-export const meta: Route.MetaFunction = () => [{ title: '訂單完成｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('訂單完成')
 
 const noop = () => () => {}
 

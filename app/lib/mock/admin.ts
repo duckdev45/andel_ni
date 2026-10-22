@@ -106,10 +106,14 @@ export const brandCurrency = (brand: string): Currency =>
 /** 規格 8：products.type 只有現貨／客訂兩種 */
 export type ProductType = '客訂' | '現貨'
 
-export type AdminVariant = { label: string; stock: number }
+export type AdminVariant = { label: string; sku?: string; stock: number }
 
 export type AdminProduct = {
   id: string
+  /** 對外商品編號 AN0014；新商品存檔時給號 */
+  code: string
+  /** 無規格商品的 SKU */
+  sku?: string
   name: string
   brand: string
   cat: CategoryId
@@ -141,6 +145,8 @@ const STOCK_SEED: Record<string, number> = {
 
 export const SEED_PRODUCTS: AdminProduct[] = PRODUCTS.map((p) => ({
   id: p.id,
+  code: p.code,
+  sku: p.sku,
   name: p.name,
   brand: p.brand,
   cat: p.cat,
@@ -156,6 +162,7 @@ export const SEED_PRODUCTS: AdminProduct[] = PRODUCTS.map((p) => ({
         name: p.variants.name,
         options: p.variants.options.map((o) => ({
           label: o.label,
+          sku: o.sku,
           stock: o.stock,
         })),
       }
@@ -169,7 +176,12 @@ export const stockOf = (p: AdminProduct, opt?: null | string) => {
   return p.variants.options.reduce((a, o) => a + o.stock, 0)
 }
 
-export type Sku = { opt: null | string; product: AdminProduct; stock: number }
+export type Sku = {
+  opt: null | string
+  product: AdminProduct
+  sku?: string
+  stock: number
+}
 
 export const skusOf = (products: AdminProduct[]): Sku[] =>
   products.flatMap((p): Sku[] =>
@@ -177,9 +189,10 @@ export const skusOf = (products: AdminProduct[]): Sku[] =>
       ? p.variants.options.map((o) => ({
           product: p,
           opt: o.label,
+          sku: o.sku,
           stock: o.stock,
         }))
-      : [{ product: p, opt: null, stock: p.stock }]
+      : [{ product: p, opt: null, sku: p.sku, stock: p.stock }]
   )
 
 /** 不可變更新：回傳調整後的商品 */

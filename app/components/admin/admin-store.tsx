@@ -103,12 +103,29 @@ function useAdminState() {
       },
       /** 新增或更新商品；新商品可附首批進貨 */
       saveProduct(
-        product: Omit<AdminProduct, 'id'> & { id: null | string },
+        product: Omit<AdminProduct, 'code' | 'id'> & { id: null | string },
         firstPurchase?: Omit<Purchase, 'id' | 'pid'>
       ) {
         setDb((d) => {
           if (product.id) {
-            const saved = { ...product, id: product.id }
+            const old = d.products.find((p) => p.id === product.id)
+            // 編號不變；表單只帶規格名稱與庫存，SKU 依名稱沿用
+            const saved: AdminProduct = {
+              ...product,
+              id: product.id,
+              code: old?.code ?? '',
+              sku: product.sku ?? old?.sku,
+              variants: product.variants && {
+                ...product.variants,
+                options: product.variants.options.map((o) => ({
+                  ...o,
+                  sku:
+                    o.sku ??
+                    old?.variants?.options.find((x) => x.label === o.label)
+                      ?.sku,
+                })),
+              },
+            }
             return {
               ...d,
               products: d.products.map((p) => (p.id === saved.id ? saved : p)),
@@ -120,9 +137,16 @@ function useAdminState() {
               0
             ) + 1
           const pid = `p${String(n).padStart(2, '0')}`
+          // 商品編號：目前最大號 +1，永不重用
+          const codeNo =
+            d.products.reduce(
+              (a, p) => Math.max(a, parseInt(p.code.slice(2), 10) || 0),
+              0
+            ) + 1
+          const code = `AN${String(codeNo).padStart(4, '0')}`
           return {
             ...d,
-            products: [{ ...product, id: pid }, ...d.products],
+            products: [{ ...product, id: pid, code }, ...d.products],
             purchases: firstPurchase
               ? [
                   { ...firstPurchase, id: nextPoId(d.purchases), pid },

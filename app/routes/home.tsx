@@ -6,16 +6,35 @@ import { Link } from 'react-router'
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { SectionTitle } from '~/components/store/typography'
 import { BRANDS, CATEGORIES, type CategoryId, PRODUCTS } from '~/lib/catalog'
+import { originFrom, seoMeta, SITE } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
-export const meta: Route.MetaFunction = () => [
-  { title: 'AndelNI｜精品選物型錄' },
-  {
-    name: 'description',
-    content:
-      '包包、小皮件、飾品、服裝與鞋履，每一件都標清楚品牌、規格與尺寸，像一本可以直接下單的型錄。',
-  },
-]
+export const meta: Route.MetaFunction = ({ matches }) => {
+  const origin = originFrom(matches)
+  return [
+    ...seoMeta({ origin, path: '/', title: 'AndelNI｜精品選物型錄' }),
+    {
+      'script:ld+json': [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: SITE.name,
+          alternateName: SITE.alternateName,
+          url: origin + '/',
+          logo: origin + '/images/logo-mark.png',
+          sameAs: [SITE.instagram],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: SITE.name,
+          url: origin + '/',
+          inLanguage: 'zh-Hant-TW',
+        },
+      ],
+    },
+  ]
+}
 
 const SORTS = [
   ['new', '最新'],
@@ -107,8 +126,8 @@ export default function Home() {
       <section id='index' className='scroll-mt-20' aria-labelledby='index-h'>
         <div className='container-page pt-14 pb-18'>
           <div className='flex flex-wrap items-baseline justify-between gap-3 pb-5'>
-            <SectionTitle id='index-h' en='INDEX'>
-              物件索引
+            <SectionTitle id='index-h' en='SELECT'>
+              本季選物
             </SectionTitle>
             <div className='flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground'>
               <span aria-live='polite'>
@@ -175,11 +194,7 @@ function Hero() {
         aria-hidden='true'
       />
       <div className='relative container-page flex min-h-[600px] flex-col justify-between gap-14 pt-10 pb-14'>
-        <div className='flex flex-wrap justify-between gap-x-6 gap-y-2 font-mono text-xs tracking-[0.04em] text-[#F6F4F0]/75'>
-          <span>INDEX OF OBJECTS — 精品選物型錄</span>
-          <span>
-            {BRANDS.length} 個品牌・{catCount} 個分類
-          </span>
+        <div className='flex justify-end font-mono text-xs tracking-[0.04em] text-[#F6F4F0]/75'>
           <span>2026 / 秋</span>
         </div>
         <div className='flex flex-wrap items-end justify-between gap-10'>

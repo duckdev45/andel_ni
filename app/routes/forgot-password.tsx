@@ -14,8 +14,9 @@ import {
 import { CodeField, Field, isCode, isEmail } from '~/components/account/field'
 import { Button } from '~/components/ui/button'
 import { logout } from '~/lib/auth'
+import { privateMeta } from '~/lib/seo'
 
-export const meta: Route.MetaFunction = () => [{ title: '忘記密碼｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('忘記密碼')
 
 const STEPS = [
   '輸入註冊時的 Email',

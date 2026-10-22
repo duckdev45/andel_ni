@@ -11,8 +11,9 @@ import { useHydrated } from '~/components/checkout/use-hydrated'
 import { PageTitle } from '~/components/store/typography'
 import { useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
+import { privateMeta } from '~/lib/seo'
 
-export const meta: Route.MetaFunction = () => [{ title: '填寫資料｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('填寫資料')
 
 export default function CheckoutPage() {
   const hydrated = useHydrated()
@@ -61,7 +62,7 @@ export default function CheckoutPage() {
             className='flex min-h-13 items-center gap-6 bg-primary px-[18px] text-[15px] font-medium text-primary-foreground'
             to='/#index'
           >
-            瀏覽物件索引 <span aria-hidden='true'>→</span>
+            瀏覽本季選物 <span aria-hidden='true'>→</span>
           </Link>
         </div>
       ) : (

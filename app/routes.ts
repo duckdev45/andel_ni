@@ -10,7 +10,7 @@ export default [
   // 前台：完整頁首（首頁、商品頁）
   layout('routes/store-layout.tsx', [
     index('routes/home.tsx'),
-    route('products/:id', 'routes/product.tsx'),
+    route('products/:handle', 'routes/product.tsx'),
   ]),
   // 前台：精簡頁首（購物車、結帳、會員、政策）
   layout('routes/plain-layout.tsx', [
@@ -34,5 +34,7 @@ export default [
       route('ledger', 'routes/admin/ledger.tsx'),
     ]),
   ]),
+  route('sitemap.xml', 'routes/sitemap.ts'),
+  route('robots.txt', 'routes/robots.ts'),
   route('*', 'routes/not-found.tsx'),
 ] satisfies RouteConfig

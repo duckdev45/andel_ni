@@ -2,7 +2,7 @@ import { Minus, Plus } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { type CartItem, useCart } from '~/lib/cart'
-import { formatPrice, getProduct, productNo } from '~/lib/catalog'
+import { formatPrice, getProduct, productNo, productPath } from '~/lib/catalog'
 import { isCustomLine, lineKind, maxQty, optionText } from '~/lib/mock/checkout'
 import { cn } from '~/lib/utils'
 
@@ -11,7 +11,7 @@ export function CartLine({ item }: { item: CartItem }) {
   const { product: p, variant, qty } = item
   const max = maxQty(item)
   const atMax = qty >= max
-  const href = `/products/${p.id}`
+  const href = productPath(p)
 
   return (
     <article className='flex flex-wrap items-center gap-x-5 gap-y-4 border-b border-border py-5'>

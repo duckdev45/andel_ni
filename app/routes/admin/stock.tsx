@@ -86,6 +86,7 @@ export default function Stock() {
                   </span>
                   <span className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
                     {k.opt ?? '單一規格'}
+                    {k.sku && <span className='font-mono'>· {k.sku}</span>}
                     <span className='text-[#8E8E87]'>· {k.product.type}</span>
                     {(out || low) && (
                       <span

@@ -6,10 +6,23 @@ export type CategoryId =
 /** 現貨 / 部分現貨（部分規格有現貨）/ 代購・客訂（下單後海外採購，不適用鑑賞期） */
 export type ProductKind = '代購' | '客訂' | '現貨' | '部分現貨'
 
-export type VariantOption = { label: string; stock: number; swatch?: string }
+export type VariantOption = {
+  label: string
+  /** 規格層級 SKU：品牌-分類-款式-顏色（後台庫存、進貨用） */
+  sku: string
+  stock: number
+  swatch?: string
+}
 
 export type Product = {
+  /** 內部 ID（之後是 D1 的自動遞增整數），不對外顯示 */
   id: string
+  /** 對外商品編號：AN + 4 位流水號，上架時給定、永不重用（客服、IG 私訊用） */
+  code: string
+  /** 網址描述：品牌-英文品名，可改；網址以 code 為準 */
+  slug: string
+  /** 無規格商品的 SKU；有規格時各規格另有 SKU */
+  sku: string
   name: string
   brand: string
   cat: Exclude<CategoryId, 'home'>
@@ -85,6 +98,9 @@ const COMMON_SPECS = (
 export const PRODUCTS: Product[] = [
   {
     id: 'p01',
+    code: 'AN0001',
+    slug: 'urban-sophistication-i18-puffer-phone-case',
+    sku: 'URB-ACC-I18CASE',
     name: 'i18 羽絨手機殼',
     brand: 'Urban Sophistication',
     cat: 'acc',
@@ -98,9 +114,24 @@ export const PRODUCTS: Product[] = [
     variants: {
       name: '款式',
       options: [
-        { label: '奶油白', stock: 3, swatch: '#EDE6D6' },
-        { label: '霧粉', stock: 5, swatch: '#E4C2C0' },
-        { label: '黑色', stock: 0, swatch: '#1E1E1E' },
+        {
+          label: '奶油白',
+          sku: 'URB-ACC-I18CASE-CRM',
+          stock: 3,
+          swatch: '#EDE6D6',
+        },
+        {
+          label: '霧粉',
+          sku: 'URB-ACC-I18CASE-PNK',
+          stock: 5,
+          swatch: '#E4C2C0',
+        },
+        {
+          label: '黑色',
+          sku: 'URB-ACC-I18CASE-BLK',
+          stock: 0,
+          swatch: '#1E1E1E',
+        },
       ],
     },
     description:
@@ -109,6 +140,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p02',
+    code: 'AN0002',
+    slug: 'maison-margiela-zip-bifold-wallet',
+    sku: 'MMG-SLG-ZIPBIFOLD',
     name: '雙折拉鍊短夾',
     brand: 'Maison Margiela',
     cat: 'slg',
@@ -122,10 +156,30 @@ export const PRODUCTS: Product[] = [
     variants: {
       name: '顏色',
       options: [
-        { label: '黑色', stock: 0, swatch: '#1E1E1E' },
-        { label: '奶油', stock: 0, swatch: '#E9E1CF' },
-        { label: '酒紅', stock: 0, swatch: '#6B1F24' },
-        { label: '灰綠', stock: 0, swatch: '#8A9282' },
+        {
+          label: '黑色',
+          sku: 'MMG-SLG-ZIPBIFOLD-BLK',
+          stock: 0,
+          swatch: '#1E1E1E',
+        },
+        {
+          label: '奶油',
+          sku: 'MMG-SLG-ZIPBIFOLD-CRM',
+          stock: 0,
+          swatch: '#E9E1CF',
+        },
+        {
+          label: '酒紅',
+          sku: 'MMG-SLG-ZIPBIFOLD-BRG',
+          stock: 0,
+          swatch: '#6B1F24',
+        },
+        {
+          label: '灰綠',
+          sku: 'MMG-SLG-ZIPBIFOLD-SGE',
+          stock: 0,
+          swatch: '#8A9282',
+        },
       ],
     },
     description: '四縫線標誌的雙折短夾，外側拉鍊零錢袋，內有 6 個卡位。',
@@ -133,6 +187,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p03',
+    code: 'AN0003',
+    slug: 'apc-denim-canvas-tote-bag',
+    sku: 'APC-BAG-LOUTOTE',
     name: '單寧／帆布托特包',
     brand: 'A.P.C.',
     cat: 'bag',
@@ -148,6 +205,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p04',
+    code: 'AN0004',
+    slug: 'jacquemus-tie-bucket-hat',
+    sku: 'JAC-ACC-BOBHAT',
     name: '綁帶漁夫帽',
     brand: 'JACQUEMUS',
     cat: 'acc',
@@ -161,9 +221,24 @@ export const PRODUCTS: Product[] = [
     variants: {
       name: '顏色',
       options: [
-        { label: '米白', stock: 2, swatch: '#EFE8DA' },
-        { label: '黑色', stock: 3, swatch: '#1E1E1E' },
-        { label: '卡其', stock: 0, swatch: '#B59E78' },
+        {
+          label: '米白',
+          sku: 'JAC-ACC-BOBHAT-IVR',
+          stock: 2,
+          swatch: '#EFE8DA',
+        },
+        {
+          label: '黑色',
+          sku: 'JAC-ACC-BOBHAT-BLK',
+          stock: 3,
+          swatch: '#1E1E1E',
+        },
+        {
+          label: '卡其',
+          sku: 'JAC-ACC-BOBHAT-KHK',
+          stock: 0,
+          swatch: '#B59E78',
+        },
       ],
     },
     description: 'Le Bob 系列綁帶漁夫帽，下巴綁帶可調整，帽緣略寬。',
@@ -171,6 +246,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p05',
+    code: 'AN0005',
+    slug: 'maison-margiela-trifold-leather-wallet',
+    sku: 'MMG-SLG-TRIFOLD',
     name: '三折牛皮短夾',
     brand: 'Maison Margiela',
     cat: 'slg',
@@ -185,6 +263,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p06',
+    code: 'AN0006',
+    slug: 'maison-margiela-grained-leather-card-holder',
+    sku: 'MMG-SLG-CARDHLD',
     name: '荔枝紋皮革卡夾',
     brand: 'Maison Margiela',
     cat: 'slg',
@@ -199,6 +280,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p07',
+    code: 'AN0007',
+    slug: 'marimekko-unikko-tote-bag',
+    sku: 'MKK-BAG-UNIKKO',
     name: '罌粟花托特包／購物袋',
     brand: 'Marimekko',
     cat: 'bag',
@@ -214,6 +298,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p08',
+    code: 'AN0008',
+    slug: 'maison-margiela-bifold-leather-wallet',
+    sku: 'MMG-SLG-BIFOLD',
     name: '雙折牛皮短夾',
     brand: 'Maison Margiela',
     cat: 'slg',
@@ -228,6 +315,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p09',
+    code: 'AN0009',
+    slug: 'the-north-face-laptop-sleeve',
+    sku: 'TNF-BAG-LAPTOP',
     name: '電腦包 13／15 吋',
     brand: 'The North Face',
     cat: 'bag',
@@ -243,6 +333,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p10',
+    code: 'AN0010',
+    slug: 'dior-backstage-glow-face-palette',
+    sku: 'DIO-BTY-GLOWPAL',
     name: '專業後台幻彩打亮盤／腮紅盤',
     brand: 'DIOR',
     cat: 'beauty',
@@ -261,6 +354,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p11',
+    code: 'AN0011',
+    slug: 'estee-lauder-double-wear-powder-compact',
+    sku: 'ELD-BTY-DWPOWDER',
     name: '粉持久柔霧無瑕粉餅',
     brand: 'Estée Lauder',
     cat: 'beauty',
@@ -279,6 +375,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p12',
+    code: 'AN0012',
+    slug: 'jacquemus-artichaut-baseball-cap',
+    sku: 'JAC-ACC-ARTICAP',
     name: 'The Artichaut 棒球帽',
     brand: 'JACQUEMUS',
     cat: 'acc',
@@ -293,6 +392,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p13',
+    code: 'AN0013',
+    slug: 'goyard-saint-gabriel-trifold-wallet',
+    sku: 'GOY-SLG-STGABRIEL',
     name: 'Saint-Gabriel 信封三折短夾',
     brand: 'GOYARD',
     cat: 'slg',
@@ -307,6 +409,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p14',
+    code: 'AN0014',
+    slug: 'goyard-saint-sulpice-card-holder',
+    sku: 'GOY-SLG-STSULPICE',
     name: 'Saint-Sulpice 卡夾',
     brand: 'GOYARD',
     cat: 'slg',
@@ -320,9 +425,24 @@ export const PRODUCTS: Product[] = [
     variants: {
       name: '顏色',
       options: [
-        { label: '灰色', stock: 1, swatch: '#6E6E6E' },
-        { label: '黑色', stock: 2, swatch: '#1E1E1E' },
-        { label: '黑棕', stock: 1, swatch: '#9C6A3E' },
+        {
+          label: '灰色',
+          sku: 'GOY-SLG-STSULPICE-GRY',
+          stock: 1,
+          swatch: '#6E6E6E',
+        },
+        {
+          label: '黑色',
+          sku: 'GOY-SLG-STSULPICE-BLK',
+          stock: 2,
+          swatch: '#1E1E1E',
+        },
+        {
+          label: '黑棕',
+          sku: 'GOY-SLG-STSULPICE-BKB',
+          stock: 1,
+          swatch: '#9C6A3E',
+        },
       ],
     },
     description:
@@ -331,6 +451,9 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'p15',
+    code: 'AN0015',
+    slug: 'acne-studios-wool-scarf',
+    sku: 'ACN-ACC-WOOLSCARF',
     name: '純色羊毛圍巾',
     brand: 'ACNE STUDIOS',
     cat: 'acc',
@@ -361,9 +484,23 @@ export const categoryName = (id: CategoryId) =>
 
 export const getProduct = (id: string) => PRODUCTS.find((p) => p.id === id)
 
-/** 目錄編號：依上架順序，對應設計稿的 No.01 */
-export const productNo = (p: Product) =>
-  String(PRODUCTS.findIndex((q) => q.id === p.id) + 1).padStart(2, '0')
+/** 卡片上的編號：No.0014 */
+export const productNo = (p: Pick<Product, 'code'>) => p.code.slice(2)
+
+/** 商品網址：/products/an0014-goyard-saint-sulpice-card-holder */
+export const productPath = (p: Pick<Product, 'code' | 'slug'>) =>
+  `/products/${p.code.toLowerCase()}-${p.slug}`
+
+/**
+ * 從網址片段找商品：開頭的商品編號為準（後面的描述打錯也找得到）；
+ * 也接受舊網址 /products/p14。
+ */
+export const findByHandle = (handle: string) => {
+  const code = /^an(\d{4})(?:-|$)/i.exec(handle)?.[1]
+  return code
+    ? PRODUCTS.find((p) => p.code === `AN${code}`)
+    : PRODUCTS.find((p) => p.id === handle)
+}
 
 /** 現貨商品且全部售完；代購／客訂永遠可下單 */
 export const isSoldOut = (p: Product) =>

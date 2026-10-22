@@ -13,6 +13,14 @@ import {
 
 import { Toaster } from '~/components/ui/sonner'
 import { CartProvider } from '~/lib/cart'
+import { siteOrigin } from '~/lib/seo'
+
+// 正式網址給各路由的 canonical／OG 用；不會變，換頁時不必重抓
+export function loader({ request }: Route.LoaderArgs) {
+  return { origin: siteOrigin(request) }
+}
+
+export const shouldRevalidate = () => false
 
 export const links: Route.LinksFunction = () => [
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

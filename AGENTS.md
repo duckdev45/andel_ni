@@ -12,6 +12,7 @@
 ## 目錄
 
 - `app/routes.ts`：路由表。`store-layout`（首頁、商品頁）、`plain-layout`（購物車、結帳、會員、政策）、`admin/layout`（後台）。
+- 商品編號 `AN0014`（`code`，永不重用）、網址 `/products/an0014-<slug>`（`productPath()`）、規格層級 `sku`；見規格 5.1a。
 - `app/components/store`：頁首、頁尾、商品卡、標題元件。其他區域元件放 `app/components/<區域>/`。
 
 ## 指令

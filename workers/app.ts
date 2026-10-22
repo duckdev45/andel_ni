@@ -1,5 +1,6 @@
 import { createRequestHandler } from 'react-router'
 
+import { isIndexableHost } from '../app/lib/seo'
 import { type AdminEnv, handleAdmin, isAdminPath } from './auth/admin'
 
 const requestHandler = createRequestHandler(
@@ -17,11 +18,15 @@ export default {
     if (handled) return handled
 
     const response = await requestHandler(request)
-    if (!isAdminPath(new URL(request.url).pathname)) return response
-    // 後台頁面：不讓搜尋引擎收錄、不讓瀏覽器或 CDN 快取
+    const url = new URL(request.url)
+    const admin = isAdminPath(url.pathname)
+    if (!admin && isIndexableHost(url)) return response
+
     const headers = new Headers(response.headers)
+    // 預覽站（workers.dev、staging、本機）與後台：不讓搜尋引擎收錄
     headers.set('X-Robots-Tag', 'noindex, nofollow')
-    headers.set('Cache-Control', 'no-store')
+    // 後台：不讓瀏覽器或 CDN 快取
+    if (admin) headers.set('Cache-Control', 'no-store')
     return new Response(response.body, { status: response.status, headers })
   },
 } satisfies ExportedHandler<Env>

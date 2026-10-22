@@ -10,8 +10,9 @@ import {
 } from '~/components/account/auth-layout'
 import { LoginForm } from '~/components/account/login-form'
 import { useUser } from '~/lib/auth'
+import { privateMeta } from '~/lib/seo'
 
-export const meta: Route.MetaFunction = () => [{ title: '會員登入｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('會員登入')
 
 export default function Login() {
   const user = useUser()

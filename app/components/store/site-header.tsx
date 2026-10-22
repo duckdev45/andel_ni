@@ -11,7 +11,7 @@ import { useCart } from '~/lib/cart'
 import { cn } from '~/lib/utils'
 
 export const MAIN_NAV = [
-  { to: '/#index', label: '物件索引' },
+  { to: '/#index', label: '本季選物' },
   { to: '/#cats', label: '分類' },
   { to: '/#brands', label: '品牌' },
   { to: '/#about', label: '關於' },

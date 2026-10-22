@@ -13,9 +13,10 @@ import { logout, type User, useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
 import { getProduct } from '~/lib/catalog'
 import { isActiveOrder, MOCK_ADDRESSES } from '~/lib/mock/account'
+import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
-export const meta: Route.MetaFunction = () => [{ title: '會員中心｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('會員中心')
 
 const TABS = [
   ['overview', '總覽'],

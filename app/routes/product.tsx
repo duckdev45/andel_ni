@@ -1,6 +1,6 @@
 import type { Route } from './+types/product'
 
-import { isRouteErrorResponse, Link } from 'react-router'
+import { isRouteErrorResponse, Link, redirect } from 'react-router'
 
 import { ProductBuyBox } from '~/components/product/product-buy-box'
 import {
@@ -12,14 +12,16 @@ import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { PageTitle } from '~/components/store/typography'
 import {
   categoryName,
+  findByHandle,
   formatPrice,
-  getProduct,
   isCustomOrder,
   isSoldOut,
   type Product,
   productNo,
+  productPath,
   PRODUCTS,
 } from '~/lib/catalog'
+import { originFrom, seoMeta } from '~/lib/seo'
 
 /** 推薦：同品牌 → 同分類 → 其他新品，排除自己與已售完 */
 function relatedProducts(p: Product, n = 4) {
@@ -30,13 +32,15 @@ function relatedProducts(p: Product, n = 4) {
     .slice(0, n)
 }
 
-export function loader({ params, request }: Route.LoaderArgs) {
-  const product = getProduct(params.id)
+export function loader({ params }: Route.LoaderArgs) {
+  const product = findByHandle(params.handle)
   if (!product) throw new Response('Not Found', { status: 404 })
+  // 舊網址、描述打錯或改過：永久轉到正式網址，分享連結不失效
+  const canonical = productPath(product)
+  if (`/products/${params.handle}` !== canonical) throw redirect(canonical, 301)
   const i = PRODUCTS.indexOf(product)
   return {
     next: PRODUCTS[i + 1] ?? null,
-    origin: new URL(request.url).origin,
     prev: PRODUCTS[i - 1] ?? null,
     product,
     related: relatedProducts(product),
@@ -51,12 +55,12 @@ const kindText = (p: Product) =>
       : p.kind
 
 // 規格 5.3：伺服器端輸出 OG 與 JSON-LD
-export const meta: Route.MetaFunction = ({ loaderData }) => {
+export const meta: Route.MetaFunction = ({ loaderData, matches }) => {
   if (!loaderData) return [{ title: '找不到商品｜AndelNI' }]
-  const { origin, product: p } = loaderData
+  const origin = originFrom(matches)
+  const { product: p } = loaderData
   const title = `${p.brand} ${p.name}`
-  const url = `${origin}/products/${p.id}`
-  const image = `${origin}${p.image}`
+  const path = productPath(p)
   const description = `${formatPrice(p.price)}・${kindText(p)}。${p.description}`
   const availability = isCustomOrder(p)
     ? 'BackOrder'
@@ -65,46 +69,42 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
       : 'InStock'
 
   return [
-    { title: `${title}｜AndelNI` },
-    { content: description, name: 'description' },
-    { href: url, rel: 'canonical', tagName: 'link' },
-    { content: title, property: 'og:title' },
-    { content: description, property: 'og:description' },
-    { content: image, property: 'og:image' },
-    { content: url, property: 'og:url' },
-    { content: 'product', property: 'og:type' },
-    { content: 'AndelNI', property: 'og:site_name' },
-    { content: String(p.price), property: 'product:price:amount' },
-    { content: 'TWD', property: 'product:price:currency' },
+    ...seoMeta({
+      origin,
+      path,
+      title,
+      description,
+      image: p.image,
+      imageAlt: title,
+      type: 'product',
+    }),
+    { property: 'product:price:amount', content: String(p.price) },
+    { property: 'product:price:currency', content: 'TWD' },
     {
       'script:ld+json': {
         '@context': 'https://schema.org',
         '@type': 'Product',
-        brand: { '@type': 'Brand', name: p.brand },
-        description: p.description,
-        image: [image],
         name: title,
+        description: p.description,
+        image: [origin + p.image],
+        sku: p.id,
+        brand: { '@type': 'Brand', name: p.brand },
+        category: categoryName(p.cat),
         offers: {
           '@type': 'Offer',
-          availability: `https://schema.org/${availability}`,
+          url: origin + path,
           price: p.price,
           priceCurrency: 'TWD',
-          url,
+          availability: `https://schema.org/${availability}`,
+          itemCondition: 'https://schema.org/NewCondition',
         },
-        sku: p.id,
       },
     },
   ]
 }
 
-// productNo 以物件身分在 PRODUCTS 裡找編號，loader 資料經序列化後要換回目錄裡的同一個物件
-const fromCatalog = (q: Product) => getProduct(q.id) ?? q
-
 export default function ProductPage({ loaderData }: Route.ComponentProps) {
-  const p = fromCatalog(loaderData.product)
-  const prev = loaderData.prev && fromCatalog(loaderData.prev)
-  const next = loaderData.next && fromCatalog(loaderData.next)
-  const related = loaderData.related.map(fromCatalog)
+  const { next, prev, product: p, related } = loaderData
   const soldOut = isSoldOut(p)
 
   return (
@@ -114,7 +114,7 @@ export default function ProductPage({ loaderData }: Route.ComponentProps) {
         aria-label='麵包屑'
       >
         <span>
-          <Link to='/'>索引</Link> /{' '}
+          <Link to='/#index'>本季選物</Link> /{' '}
           <Link to='/#index'>{categoryName(p.cat)}</Link> /{' '}
           <span className='text-foreground'>
             No.{productNo(p)} {p.name}
@@ -122,18 +122,12 @@ export default function ProductPage({ loaderData }: Route.ComponentProps) {
         </span>
         <span className='flex gap-4'>
           {prev && (
-            <Link
-              aria-label={`上一件：${prev.name}`}
-              to={`/products/${prev.id}`}
-            >
+            <Link aria-label={`上一件：${prev.name}`} to={productPath(prev)}>
               ← No.{productNo(prev)}
             </Link>
           )}
           {next && (
-            <Link
-              aria-label={`下一件：${next.name}`}
-              to={`/products/${next.id}`}
-            >
+            <Link aria-label={`下一件：${next.name}`} to={productPath(next)}>
               No.{productNo(next)} →
             </Link>
           )}

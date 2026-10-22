@@ -3,15 +3,16 @@ import type { Route } from './+types/policy-returns'
 import { Link } from 'react-router'
 
 import { Eyebrow, PageTitle } from '~/components/store/typography'
+import { originFrom, seoMeta } from '~/lib/seo'
 
-export const meta: Route.MetaFunction = () => [
-  { title: '退換貨政策｜AndelNI' },
-  {
-    content:
+export const meta: Route.MetaFunction = ({ matches }) =>
+  seoMeta({
+    origin: originFrom(matches),
+    path: '/policy/returns',
+    title: '退換貨政策',
+    description:
       '客訂／代購商品不適用 7 天鑑賞期，收到後請 48 小時內全程開箱錄影；一般現貨商品享 7 天鑑賞期。',
-    name: 'description',
-  },
-]
+  })
 
 type Item = { body: React.ReactNode; term: string }
 

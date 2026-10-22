@@ -10,6 +10,7 @@ import {
   isSoldOut,
   type Product,
   productNo,
+  productPath,
 } from '~/lib/catalog'
 import { cn } from '~/lib/utils'
 
@@ -40,7 +41,7 @@ export function ProductCard({ product: p }: { product: Product }) {
   const custom = isCustomOrder(p)
   const wished = wish.includes(p.id)
   const note = stockNote(p)
-  const href = `/products/${p.id}`
+  const href = productPath(p)
   // 有規格的商品要到商品頁選規格
   const needsVariant = !!p.variants
 

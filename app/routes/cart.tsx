@@ -21,9 +21,10 @@ import {
   SHIPPING_FEES,
 } from '~/lib/catalog'
 import { ADDON_IDS, isCustomLine } from '~/lib/mock/checkout'
+import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
-export const meta: Route.MetaFunction = () => [{ title: '購物車｜AndelNI' }]
+export const meta: Route.MetaFunction = () => privateMeta('購物車')
 
 export default function CartPage() {
   const hydrated = useHydrated()
@@ -60,7 +61,7 @@ export default function CartPage() {
             className='flex min-h-13 items-center gap-6 bg-primary px-[18px] text-[15px] font-medium text-primary-foreground'
             to='/#index'
           >
-            瀏覽物件索引 <span aria-hidden='true'>→</span>
+            瀏覽本季選物 <span aria-hidden='true'>→</span>
           </Link>
         </div>
       ) : (

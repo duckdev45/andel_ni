@@ -34,7 +34,9 @@ export default function Products() {
   const query = q.trim().toLowerCase()
   const list = products
     .filter(FILTERS[filter].test)
-    .filter((p) => !query || (p.name + p.brand).toLowerCase().includes(query))
+    .filter(
+      (p) => !query || (p.code + p.name + p.brand).toLowerCase().includes(query)
+    )
 
   return (
     <>
@@ -42,7 +44,7 @@ export default function Products() {
         <SearchField
           label='搜尋商品'
           value={q}
-          placeholder='搜尋商品或品牌'
+          placeholder='搜尋編號、商品或品牌'
           onChange={setQ}
         />
         <FilterChips
@@ -91,7 +93,8 @@ export default function Products() {
                       {p.name}
                     </span>
                     <span className='truncate text-xs text-muted-foreground'>
-                      {p.brand} · {categoryName(p.cat)} · {p.type}
+                      <span className='font-mono'>{p.code}</span> · {p.brand} ·{' '}
+                      {categoryName(p.cat)} · {p.type}
                       {cost
                         ? ` · 毛利 ${Math.round(((p.price - cost) / p.price) * 100)}%`
                         : ''}
