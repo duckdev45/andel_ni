@@ -22,6 +22,8 @@
       "~/*": ["./app/*"]
     },
     "esModuleInterop": true,
-    "resolveJsonModule": true
-  }
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true
+  },
+  "exclude": ["**/*.test.ts"]
 }

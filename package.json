@@ -14,7 +14,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "cf-typegen": "wrangler types",
-    "postinstall": "wrangler types"
+    "postinstall": "wrangler types",
+    "test": "node --test \"workers/**/*.test.ts\"",
+    "admin:setup": "node scripts/admin-setup.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -6,6 +6,7 @@
 
 - React Router v8（framework 模式、SSR）跑在 Cloudflare Worker（`workers/app.ts`）。
 - 後端（Hono、D1、R2、綠界、Resend）尚未實作；前端目前用 `app/lib/catalog.ts`、`app/lib/mock/*` 假資料，購物車與登入狀態暫存 localStorage（`app/lib/cart.tsx`、`app/lib/auth.ts`）。
+- 後台存取保護：密碼＋驗證器 App，在 Worker 層（`workers/auth/admin.ts`）；設定 `pnpm admin:setup`，規劃見 `docs/後台存取保護.md`。
 - UI：Tailwind v4 + shadcn/ui（`app/components/ui`，直角）。色票、字體 token 在 `app/app.css`。
 
 ## 目錄
@@ -15,8 +16,8 @@
 
 ## 指令
 
-- `pnpm dev`／`pnpm build`／`pnpm typecheck`／`pnpm lint`／`pnpm format`
-- 提交前：`pnpm lint && pnpm format:check && pnpm typecheck`
+- `pnpm dev`／`pnpm build`／`pnpm typecheck`／`pnpm lint`／`pnpm format`／`pnpm test`
+- 提交前：`pnpm lint && pnpm test && pnpm format:check && pnpm typecheck`
 
 ## 慣例
 

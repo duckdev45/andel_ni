@@ -23,7 +23,8 @@ export default [
     route('account', 'routes/account.tsx'),
     route('policy/returns', 'routes/policy-returns.tsx'),
   ]),
-  // 後台
+  // 後台（登入頁不套後台 layout；存取檢查在 workers/auth/admin.ts）
+  route('admin/login', 'routes/admin/login.tsx'),
   ...prefix('admin', [
     layout('routes/admin/layout.tsx', [
       index('routes/admin/dashboard.tsx'),

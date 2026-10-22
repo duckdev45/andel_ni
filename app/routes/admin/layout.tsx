@@ -4,6 +4,7 @@ import {
   BookOpenText,
   ChartColumn,
   LayoutGrid,
+  LogOut,
   Package,
   Plus,
   ReceiptText,
@@ -14,12 +15,17 @@ import { AdminSheet } from '~/components/admin/admin-sheet'
 import { AdminProvider, useAdmin } from '~/components/admin/admin-store'
 import { cn } from '~/lib/utils'
 
-// 後台登入／權限暫不做：上線時以 Cloudflare Access 保護 /admin（規格第 7 節）。
+// 存取保護在 Worker 層（workers/auth/admin.ts），見 docs/後台存取保護.md。
 
 export const meta: Route.MetaFunction = () => [
   { title: '後台｜AndelNI' },
   { name: 'robots', content: 'noindex' },
 ]
+
+// 空 loader：讓前台用連結切進後台時也會向伺服器發資料請求，經過 Worker 的密碼檢查
+export function loader() {
+  return null
+}
 
 const NAV = [
   { to: '/admin', label: '總覽', title: '總覽', icon: LayoutGrid },
@@ -114,6 +120,7 @@ function Shell() {
           >
             查看前台商店 ↗
           </Link>
+          <LogoutButton className='mt-1 flex min-h-11 w-full items-center gap-2 px-2.5 text-[13px] text-muted-foreground hover:text-foreground' />
         </div>
       </aside>
 
@@ -129,6 +136,10 @@ function Shell() {
               {current.title}
             </h1>
           </div>
+          <LogoutButton
+            className='ml-auto grid size-11 place-items-center lg:hidden'
+            iconOnly
+          />
           {action && (
             <button
               type='button'
@@ -179,5 +190,30 @@ function Shell() {
         ))}
       </nav>
     </div>
+  )
+}
+
+async function logout() {
+  await fetch('/api/admin/session', { method: 'DELETE' }).catch(() => null)
+  window.location.assign('/admin/login')
+}
+
+function LogoutButton({
+  className,
+  iconOnly,
+}: {
+  className?: string
+  iconOnly?: boolean
+}) {
+  return (
+    <button
+      type='button'
+      className={className}
+      aria-label={iconOnly ? '登出' : undefined}
+      onClick={logout}
+    >
+      <LogOut className='size-4' aria-hidden strokeWidth={1.6} />
+      {!iconOnly && '登出'}
+    </button>
   )
 }
