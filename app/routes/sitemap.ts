@@ -1,11 +1,14 @@
 import type { Route } from './+types/sitemap'
 
-import { productPath, PRODUCTS } from '~/lib/catalog'
+import { productPath } from '~/lib/catalog'
+import { dbFrom } from '~/lib/context'
+import { listProducts } from '~/lib/db/products.server'
 import { siteOrigin } from '~/lib/seo'
 
 // 規格 5.3：sitemap.xml。只列公開、可收錄的頁面；完售商品保留（保留搜尋流量，規格 5.1）。
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ context, request }: Route.LoaderArgs) {
   const origin = siteOrigin(request)
+  const PRODUCTS = await listProducts(dbFrom(context))
   const latest = PRODUCTS.map((p) => p.createdAt)
     .sort()
     .at(-1)

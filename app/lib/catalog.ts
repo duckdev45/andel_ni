@@ -492,14 +492,12 @@ export const productPath = (p: Pick<Product, 'code' | 'slug'>) =>
   `/products/${p.code.toLowerCase()}-${p.slug}`
 
 /**
- * 從網址片段找商品：開頭的商品編號為準（後面的描述打錯也找得到）；
- * 也接受舊網址 /products/p14。
+ * 從網址片段取商品編號：開頭的編號為準（後面的描述打錯也找得到）。
+ * 也接受舊網址 /products/p14（= AN0014）。
  */
-export const findByHandle = (handle: string) => {
-  const code = /^an(\d{4})(?:-|$)/i.exec(handle)?.[1]
-  return code
-    ? PRODUCTS.find((p) => p.code === `AN${code}`)
-    : PRODUCTS.find((p) => p.id === handle)
+export const codeFromHandle = (handle: string) => {
+  const m = /^(?:an(\d{4})(?:-|$)|p(\d{1,4})$)/i.exec(handle)
+  return m ? `AN${(m[1] ?? m[2]).padStart(4, '0')}` : null
 }
 
 /** 現貨商品且全部售完；代購／客訂永遠可下單 */

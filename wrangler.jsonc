@@ -1,7 +1,11 @@
 /**
  * Wrangler 設定：https://developers.cloudflare.com/workers/wrangler/configuration/
- * 前台（React Router SSR）與之後的 API（Hono）跑在同一個 Worker（規格 D3）。
- * D1 / R2 / staging 環境之後接後端時再加（規格 11.2）。
+ * 前台（React Router SSR）與 API（Hono，/api/*）跑在同一個 Worker（規格 D3）。
+ *
+ * 環境（規格 11.2）：
+ *   正式   andelni           ← main 分支（Workers Builds）
+ *   staging andelni-staging  ← dev 分支；建置時設 CLOUDFLARE_ENV=staging
+ * D1、rate limit 等 binding 不會繼承，staging 要各寫一份。
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -12,6 +16,14 @@
     "enabled": true,
   },
   "upload_source_maps": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "andelni",
+      "database_id": "d89704d8-d026-467a-8c65-b7ff46a2a2e7",
+      "migrations_dir": "migrations",
+    },
+  ],
   // 後台登入頻率限制：同一 IP 每分鐘 5 次（workers/auth/admin.ts）
   "ratelimits": [
     {
@@ -20,4 +32,24 @@
       "simple": { "limit": 5, "period": 60 },
     },
   ],
+  "env": {
+    "staging": {
+      "name": "andelni-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "andelni-staging",
+          "database_id": "ea62acdc-3f03-4119-bce0-5e3be7ad6925",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "ratelimits": [
+        {
+          "name": "ADMIN_LOGIN_LIMIT",
+          "namespace_id": "1002",
+          "simple": { "limit": 5, "period": 60 },
+        },
+      ],
+    },
+  },
 }

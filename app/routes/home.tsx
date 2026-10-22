@@ -5,7 +5,9 @@ import { Link } from 'react-router'
 
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { SectionTitle } from '~/components/store/typography'
-import { BRANDS, CATEGORIES, type CategoryId, PRODUCTS } from '~/lib/catalog'
+import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
+import { dbFrom } from '~/lib/context'
+import { listProducts } from '~/lib/db/products.server'
 import { originFrom, seoMeta, SITE } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
@@ -43,27 +45,32 @@ const SORTS = [
 ] as const
 type Sort = (typeof SORTS)[number][0]
 
-const newCount = PRODUCTS.filter((p) => p.isNew).length
 const catCount = CATEGORIES.filter((c) => !c.comingSoon).length
 
-export default function Home() {
+export async function loader({ context }: Route.LoaderArgs) {
+  return { products: await listProducts(dbFrom(context)) }
+}
+
+export default function Home({ loaderData }: Route.ComponentProps) {
+  const { products } = loaderData
   const [cat, setCat] = useState<'all' | CategoryId>('all')
   const [sort, setSort] = useState<Sort>('new')
 
-  const items = PRODUCTS.filter((p) => cat === 'all' || p.cat === cat).sort(
-    (a, b) =>
+  const items = products
+    .filter((p) => cat === 'all' || p.cat === cat)
+    .sort((a, b) =>
       sort === 'new'
         ? b.createdAt.localeCompare(a.createdAt)
         : sort === 'low'
           ? a.price - b.price
           : b.price - a.price
-  )
+    )
   const catLabel =
     cat === 'all' ? '全部' : CATEGORIES.find((c) => c.id === cat)?.name
 
   return (
     <main>
-      <Hero />
+      <Hero newCount={products.filter((p) => p.isNew).length} />
 
       <section
         id='cats'
@@ -87,8 +94,8 @@ export default function Home() {
               const on = cat === c.id
               const count =
                 c.id === 'all'
-                  ? PRODUCTS.length
-                  : PRODUCTS.filter((p) => p.cat === c.id).length
+                  ? products.length
+                  : products.filter((p) => p.cat === c.id).length
               return (
                 <button
                   key={c.id}
@@ -179,7 +186,7 @@ export default function Home() {
   )
 }
 
-function Hero() {
+function Hero({ newCount }: { newCount: number }) {
   return (
     <section
       className='relative overflow-hidden border-b border-line bg-[#2B2724] bg-[url(/images/hero.jpg)] bg-cover bg-[center_42%] text-[#F6F4F0]'

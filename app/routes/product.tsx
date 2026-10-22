@@ -13,38 +13,44 @@ import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { PageTitle } from '~/components/store/typography'
 import {
   categoryName,
-  findByHandle,
+  codeFromHandle,
   formatPrice,
   isCustomOrder,
   isSoldOut,
   type Product,
   productNo,
   productPath,
-  PRODUCTS,
 } from '~/lib/catalog'
+import { dbFrom } from '~/lib/context'
+import { listProducts } from '~/lib/db/products.server'
 import { originFrom, seoMeta } from '~/lib/seo'
 
 /** 推薦：同品牌 → 同分類 → 其他新品，排除自己與已售完 */
-function relatedProducts(p: Product, n = 4) {
+function relatedProducts(p: Product, all: Product[], n = 4) {
   const rank = (q: Product) =>
     (q.brand === p.brand ? 0 : 2) + (q.cat === p.cat ? 0 : 1)
-  return PRODUCTS.filter((q) => q.id !== p.id && !isSoldOut(q))
+  return all
+    .filter((q) => q.id !== p.id && !isSoldOut(q))
     .sort((a, b) => rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt))
     .slice(0, n)
 }
 
-export function loader({ params }: Route.LoaderArgs) {
-  const product = findByHandle(params.handle)
+// ponytail: 一次讀全部上架商品再算上一件／下一件與推薦；商品破千再改成分別查詢
+export async function loader({ context, params }: Route.LoaderArgs) {
+  const code = codeFromHandle(params.handle)
+  const all = code ? await listProducts(dbFrom(context)) : []
+  const product = all.find((p) => p.code === code)
   if (!product) throw new Response('Not Found', { status: 404 })
   // 舊網址、描述打錯或改過：永久轉到正式網址，分享連結不失效
   const canonical = productPath(product)
   if (`/products/${params.handle}` !== canonical) throw redirect(canonical, 301)
-  const i = PRODUCTS.indexOf(product)
+  const byCode = [...all].sort((a, b) => a.code.localeCompare(b.code))
+  const i = byCode.indexOf(product)
   return {
-    next: PRODUCTS[i + 1] ?? null,
-    prev: PRODUCTS[i - 1] ?? null,
+    next: byCode[i + 1] ?? null,
+    prev: byCode[i - 1] ?? null,
     product,
-    related: relatedProducts(product),
+    related: relatedProducts(product, all),
   }
 }
 
