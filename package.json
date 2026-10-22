@@ -7,7 +7,7 @@
     "dev": "react-router dev",
     "build": "react-router build",
     "preview": "pnpm run build && vite preview",
-    "deploy": "pnpm run build && wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "deploy": "pnpm run build && wrangler d1 migrations apply DB --remote --config wrangler.jsonc && wrangler deploy",
     "typecheck": "wrangler types --config wrangler.jsonc && react-router typegen && tsc -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -22,7 +22,7 @@
     "db:migrate:staging": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env staging",
     "db:seed:staging": "node scripts/seed.ts && wrangler d1 execute DB --remote --config wrangler.jsonc --env staging --file .wrangler/seed.sql",
     "db:migrate:prod": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc",
-    "deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build && wrangler d1 migrations apply DB --remote && wrangler deploy"
+    "deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build && wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env staging && wrangler deploy"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
