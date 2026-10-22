@@ -80,3 +80,6 @@ export const privateMeta = (title: string): MetaDescriptor[] => [
   { title: `${title}｜${SITE.name}` },
   { name: 'robots', content: 'noindex, nofollow' },
 ]
+
+/** Worker 判定後台未開放時帶給 React Router 的標頭；後台 layout 看到就回 404 頁 */
+export const ADMIN_CLOSED_HEADER = 'X-AndelNI-Admin-Closed'

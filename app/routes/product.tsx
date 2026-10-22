@@ -8,6 +8,7 @@ import {
   ProductSpecs,
 } from '~/components/product/product-details'
 import { ProductGallery } from '~/components/product/product-gallery'
+import { NotFound } from '~/components/store/not-found'
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { PageTitle } from '~/components/store/typography'
 import {
@@ -56,7 +57,11 @@ const kindText = (p: Product) =>
 
 // 規格 5.3：伺服器端輸出 OG 與 JSON-LD
 export const meta: Route.MetaFunction = ({ loaderData, matches }) => {
-  if (!loaderData) return [{ title: '找不到商品｜AndelNI' }]
+  if (!loaderData)
+    return [
+      { title: '找不到商品｜AndelNI' },
+      { name: 'robots', content: 'noindex' },
+    ]
   const origin = originFrom(matches)
   const { product: p } = loaderData
   const title = `${p.brand} ${p.name}`
@@ -176,18 +181,18 @@ export default function ProductPage({ loaderData }: Route.ComponentProps) {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  const notFound = isRouteErrorResponse(error) && error.status === 404
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    return <NotFound kind='product' />
+  }
   return (
     <main className='container-page py-16'>
-      <PageTitle>{notFound ? '找不到商品' : '發生錯誤'}</PageTitle>
-      <p className='mt-4 text-[15px] leading-relaxed'>
-        {notFound ? '這件商品不存在或已下架。' : '請稍後再試一次。'}
-      </p>
+      <PageTitle>發生錯誤</PageTitle>
+      <p className='mt-4 text-[15px] leading-relaxed'>請稍後再試一次。</p>
       <Link
         className='mt-8 inline-block border-b border-line pb-0.5 text-sm'
-        to='/#index'
+        to='/'
       >
-        回到索引 →
+        回到首頁 →
       </Link>
     </main>
   )

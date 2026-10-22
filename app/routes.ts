@@ -11,6 +11,8 @@ export default [
   layout('routes/store-layout.tsx', [
     index('routes/home.tsx'),
     route('products/:handle', 'routes/product.tsx'),
+    // 其他找不到的網址：真正的 404，保留完整頁首頁尾
+    route('*', 'routes/not-found.tsx'),
   ]),
   // 前台：精簡頁首（購物車、結帳、會員、政策）
   layout('routes/plain-layout.tsx', [
@@ -36,5 +38,4 @@ export default [
   ]),
   route('sitemap.xml', 'routes/sitemap.ts'),
   route('robots.txt', 'routes/robots.ts'),
-  route('*', 'routes/not-found.tsx'),
 ] satisfies RouteConfig
