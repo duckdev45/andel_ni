@@ -1,0 +1,24 @@
+# AndelNI 購物網站
+
+規格：`docs/架構與規格.md`（與設計稿衝突時以規格為準）。
+
+## 架構
+
+- React Router v8（framework 模式、SSR）跑在 Cloudflare Worker（`workers/app.ts`）。
+- 後端（Hono、D1、R2、綠界、Resend）尚未實作；前端目前用 `app/lib/catalog.ts`、`app/lib/mock/*` 假資料，購物車與登入狀態暫存 localStorage（`app/lib/cart.tsx`、`app/lib/auth.ts`）。
+- UI：Tailwind v4 + shadcn/ui（`app/components/ui`，直角）。色票、字體 token 在 `app/app.css`。
+
+## 目錄
+
+- `app/routes.ts`：路由表。`store-layout`（首頁、商品頁）、`plain-layout`（購物車、結帳、會員、政策）、`admin/layout`（後台）。
+- `app/components/store`：頁首、頁尾、商品卡、標題元件。其他區域元件放 `app/components/<區域>/`。
+
+## 指令
+
+- `pnpm dev`／`pnpm build`／`pnpm typecheck`／`pnpm lint`／`pnpm format`
+- 提交前：`pnpm lint && pnpm format:check && pnpm typecheck`
+
+## 慣例
+
+- pnpm、Node 22（`mise.toml`）。prettier：無分號、單引號。eslint：perfectionist 排序 import / JSX props、jsx-a11y、react-hooks。
+- 註解用繁體中文；路由 `meta` 標題格式「xxx｜AndelNI」。

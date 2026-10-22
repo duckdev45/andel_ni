@@ -1,0 +1,125 @@
+@import 'tailwindcss' source('.');
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * AndelNI 風格 B（淺色）：米白底、墨黑細線格、酒紅點綴、直角。
+ * 色票來源：設計稿 Main.dc.html tokens(false, '#7A1618')。
+ */
+:root {
+  --radius: 0px;
+
+  --background: #f6f6f3;
+  --foreground: #121212;
+  --card: #f6f6f3;
+  --card-foreground: #121212;
+  --popover: #f6f6f3;
+  --popover-foreground: #121212;
+  --primary: #121212;
+  --primary-foreground: #f6f6f3;
+  --secondary: #e7e6e1;
+  --secondary-foreground: #121212;
+  --muted: #e7e6e1;
+  --muted-foreground: #55554f;
+  --accent: #e7e6e1;
+  --accent-foreground: #121212;
+  --destructive: #b3261e;
+  --border: #cfcfc8;
+  --input: #121212;
+  --ring: #7a1618;
+
+  /* 品牌專屬 */
+  --brand: #7a1618;
+  --brand-foreground: #ffffff;
+  --brand-soft: #e0787b;
+  --line: #121212;
+  --caption: #3d3d38;
+  --disabled: #e7e6e1;
+  --disabled-foreground: #6b6b65;
+  --inverse: #121212;
+  --inverse-foreground: #f6f6f3;
+  --inverse-rule: #3a3a36;
+  --inverse-muted: #a8a8a0;
+  --inverse-body: #cfcfc8;
+  --inverse-accent: #e07a7c;
+  --tone-scent: #e6dccf;
+  --tone-table: #e3e1da;
+  --tone-light: #dcd6cc;
+  --tone-textile: #d7d8cd;
+  --tone-acc: #e4d6ca;
+  --tone-object: #e8e3d9;
+}
+
+@theme inline {
+  --font-sans: 'Noto Sans TC', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-display: 'Archivo', 'Noto Sans TC', sans-serif;
+  --font-wordmark: 'Cormorant Garamond', serif;
+
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-line: var(--line);
+  --color-caption: var(--caption);
+  --color-disabled: var(--disabled);
+  --color-disabled-foreground: var(--disabled-foreground);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --color-inverse-rule: var(--inverse-rule);
+  --color-inverse-muted: var(--inverse-muted);
+  --color-inverse-body: var(--inverse-body);
+  --color-inverse-accent: var(--inverse-accent);
+  --color-tone-scent: var(--tone-scent);
+  --color-tone-table: var(--tone-table);
+  --color-tone-light: var(--tone-light);
+  --color-tone-textile: var(--tone-textile);
+  --color-tone-acc: var(--tone-acc);
+  --color-tone-object: var(--tone-object);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility container-page {
+  @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10;
+}
+
+/* 標誌：PNG 當遮罩，顏色由 background 決定 */
+@utility logo-mark {
+  mask: url('/images/logo-mark.png') center / contain no-repeat;
+}

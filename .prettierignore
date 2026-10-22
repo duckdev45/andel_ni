@@ -1,0 +1,10 @@
+node_modules
+build
+.react-router
+.wrangler
+coverage
+pnpm-lock.yaml
+public
+worker-configuration.d.ts
+.agents
+.idea

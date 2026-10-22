@@ -1,0 +1,15 @@
+/**
+ * Wrangler 設定：https://developers.cloudflare.com/workers/wrangler/configuration/
+ * 前台（React Router SSR）與之後的 API（Hono）跑在同一個 Worker（規格 D3）。
+ * D1 / R2 / staging 環境之後接後端時再加（規格 11.2）。
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "andelni",
+  "compatibility_date": "2026-10-19",
+  "main": "./workers/app.ts",
+  "observability": {
+    "enabled": true,
+  },
+  "upload_source_maps": true,
+}
