@@ -10,21 +10,24 @@ import {
   LOW_STOCK_DEFAULT,
   type OrderStatus,
   type Purchase,
-  SEED_ORDERS,
   SEED_PURCHASES,
   SEED_SETTINGS,
   withStock,
 } from '~/lib/mock/admin'
 
-// 商品、庫存、低庫存門檻：D1（後台 layout 的 loader 讀，/api/admin/* 寫），畫面先更新再送出，失敗就重新讀取。
-// ponytail: 訂單、進貨、記帳設定仍是前端記憶體的示範資料（重新整理回到示範資料）；接訂單（第 4 步）時改。
+// 商品、庫存、訂單、低庫存門檻：D1（後台 layout 的 loader 讀，/api/admin/* 寫），畫面先更新再送出，失敗就重新讀取。
+// ponytail: 進貨、記帳設定仍是前端記憶體的示範資料（重新整理回到示範資料）。
 
 export type SheetState =
   | { id: null | string; type: 'product' }
   | { id: string; type: 'order' }
   | { opt: null | string; pid: null | string; type: 'purchase' }
 
-export type AdminData = { lowAt: null | number; products: AdminProduct[] }
+export type AdminData = {
+  lowAt: null | number
+  orders: AdminOrder[]
+  products: AdminProduct[]
+}
 
 type Db = {
   lowAt: number
@@ -35,6 +38,7 @@ type Db = {
 }
 
 const fromLoader = (data: AdminData) => ({
+  orders: data.orders,
   products: data.products,
   lowAt: data.lowAt ?? LOW_STOCK_DEFAULT,
 })
@@ -73,7 +77,6 @@ export async function uploadImage(blob: Blob) {
 function useAdminState(data: AdminData) {
   const revalidator = useRevalidator()
   const [db, setDb] = useState<Db>(() => ({
-    orders: SEED_ORDERS,
     purchases: SEED_PURCHASES,
     settings: SEED_SETTINGS,
     ...fromLoader(data),
@@ -125,11 +128,13 @@ function useAdminState(data: AdminData) {
       closeSheet() {
         setSheetOpen(false)
       },
-      /** 依狀態流程轉換；不合法的轉換回傳 false */
+      /** 依狀態流程轉換；不合法的轉換回傳 false。取消、退回放回的庫存在重新讀取後顯示 */
       setOrderStatus(id: string, to: OrderStatus, tracking?: string) {
         const o = db.orders.find((x) => x.id === id)
         if (!o || !canTransition(o.status, to)) return false
-        // ponytail: 示範訂單不動 D1 庫存；訂單接 D1（第 4 步）後，取消或退回要放回庫存
+        api(`/orders/${id}`, 'PATCH', { status: to, tracking })
+          .then(() => revalidator.revalidate())
+          .catch(fail)
         setDb((d) => ({
           ...d,
           orders: d.orders.map((x) =>
@@ -145,6 +150,14 @@ function useAdminState(data: AdminData) {
           ...d,
           orders: d.orders.map((x) => (x.id === id ? { ...x, pack } : x)),
         }))
+      },
+      /** 包材欄位離開時存檔 */
+      saveOrderPack(id: string) {
+        const pack = db.orders.find((x) => x.id === id)?.pack
+        if (pack === undefined) return
+        api(`/orders/${id}/pack`, 'PUT', {
+          value: Math.max(0, Math.round(pack)),
+        }).catch(fail)
       },
       toggleActive(pid: string) {
         const p = db.products.find((x) => x.id === pid)

@@ -31,7 +31,7 @@ import {
   purchaseCalc,
   SHIP,
   type ShipMethod,
-  THIS_MONTH,
+  taipeiDate,
 } from '~/lib/mock/admin'
 import { cn } from '~/lib/utils'
 
@@ -48,7 +48,8 @@ export default function Ledger() {
   const [period, setPeriod] = useState<Period>('month')
   const [tab, setTab] = useState<Tab>('sales')
 
-  const inP = (date: string) => period === 'all' || date.startsWith(THIS_MONTH)
+  const inP = (date: string) =>
+    period === 'all' || date.startsWith(taipeiDate().slice(0, 7))
   const sales = orders
     .filter((o) => isBooked(o) && inP(o.date))
     .map((o) => ({ o, l: orderLedger(o, purchases, settings) }))
@@ -64,7 +65,7 @@ export default function Ledger() {
     { sale: 0, cogs: 0, fee: 0, pack: 0, ship: 0, net: 0 }
   )
   const pendN = orders.filter(
-    (o) => o.status === 'pending_pay' && inP(o.date)
+    (o) => o.status === 'pending_payment' && inP(o.date)
   ).length
 
   const purs = purchases

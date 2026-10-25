@@ -6,18 +6,16 @@ import type {
   VariantRow,
 } from '../../../workers/api/order-input'
 
+import { adminId } from '~/lib/db/admin.server'
 import { imageUrl } from '~/lib/images'
+import {
+  type AdminOrder,
+  canTransition,
+  type OrderStatus,
+} from '~/lib/mock/admin'
 import { PAY_OPTIONS, SHIP_OPTIONS } from '~/lib/mock/checkout'
 
-// 訂單（規格 6）：下單寫入、會員看自己的訂單、逾時未付款自動取消。後台訂單在第 6b 步接。
-
-export type OrderStatus =
-  | 'cancelled'
-  | 'completed'
-  | 'pending_payment'
-  | 'pending_shipment'
-  | 'returned'
-  | 'shipped'
+// 訂單（規格 6）：下單寫入、會員看自己的訂單、後台列表與改狀態、逾時未付款自動取消。
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: '待付款',
@@ -189,12 +187,14 @@ type OrderRow = {
   stock_hold_until: null | string
   note: string
   created_at: string
+  pack_cost: null | number
   email: string
   last_note: null | string
 }
 
 type ItemRow = {
   order_id: number
+  product_id: number
   name_snapshot: string
   sku_snapshot: string
   price_snapshot: number
@@ -265,10 +265,7 @@ function toDetail(o: OrderRow, items: ItemRow[]) {
   }
 }
 
-/** 會員自己的訂單（新到舊）；給 no 時只取那一筆 */
-export async function listOrders(db: D1Database, userId: number, no?: string) {
-  const where = `o.user_id = ?1 ${no ? 'AND o.order_no = ?2' : ''}`
-  const bind = no ? [userId, no] : [userId]
+async function queryOrders(db: D1Database, where: string, bind: unknown[]) {
   const [orders, items] = await db.batch([
     db
       .prepare(
@@ -281,8 +278,9 @@ export async function listOrders(db: D1Database, userId: number, no?: string) {
       .bind(...bind),
     db
       .prepare(
-        `SELECT i.order_id, i.name_snapshot, i.sku_snapshot, i.price_snapshot,
-                i.qty, i.option_snapshot, i.kind_snapshot, b.name AS brand,
+        `SELECT i.order_id, v.product_id, i.name_snapshot, i.sku_snapshot,
+                i.price_snapshot, i.qty, i.option_snapshot, i.kind_snapshot,
+                b.name AS brand,
                 (SELECT r2_key FROM product_images pi
                   WHERE pi.product_id = v.product_id ORDER BY pi.sort LIMIT 1) AS image
          FROM order_items i
@@ -294,8 +292,111 @@ export async function listOrders(db: D1Database, userId: number, no?: string) {
       )
       .bind(...bind),
   ])
-  const is = items.results as ItemRow[]
-  return (orders.results as OrderRow[]).map((o) => toDetail(o, is))
+  return {
+    orders: orders.results as OrderRow[],
+    items: items.results as ItemRow[],
+  }
+}
+
+/** 會員自己的訂單（新到舊）；給 no 時只取那一筆 */
+export async function listOrders(db: D1Database, userId: number, no?: string) {
+  const { orders, items } = await queryOrders(
+    db,
+    `o.user_id = ?1 ${no ? 'AND o.order_no = ?2' : ''}`,
+    no ? [userId, no] : [userId]
+  )
+  return orders.map((o) => toDetail(o, items))
+}
+
+/** 後台訂單列表（新到舊）。ponytail: 全部一次讀，訂單上千筆再加分頁 */
+export async function listAdminOrders(db: D1Database): Promise<AdminOrder[]> {
+  const { orders, items } = await queryOrders(db, '1', [])
+  return orders.map((o) => {
+    const d = toDetail(o, items)
+    return {
+      id: d.no,
+      date: taipei(o.created_at).slice(0, 16).replace('T', ' '),
+      customer: { name: d.name, phone: d.phone, email: d.email },
+      ship: { method: d.ship, address: d.destination },
+      pay: d.pay,
+      items: items
+        .filter((i) => i.order_id === o.id)
+        .map((i) => ({
+          pid: adminId(i.product_id),
+          name: i.name_snapshot,
+          opt: i.option_snapshot,
+          kind: i.kind_snapshot,
+          price: i.price_snapshot,
+          qty: i.qty,
+        })),
+      subtotal: d.subtotal,
+      shipFee: d.fee,
+      total: d.total,
+      status: d.status,
+      tracking: d.tracking ?? '',
+      note: d.note,
+      pack: o.pack_cost ?? undefined,
+    }
+  })
+}
+
+/** 後台改狀態時記在訂單紀錄的說明；取消、退回的會顯示給客人看 */
+const EVENT_NOTE: Partial<Record<OrderStatus, string>> = {
+  pending_shipment: '已確認收款',
+  shipped: '已出貨',
+  completed: '訂單已完成',
+  cancelled: '訂單已由店家取消',
+  returned: '未取件或拒收，訂單已退回',
+}
+
+/** 放回現貨庫存（取消、退回、逾時）；只放 order_id IN (ids) 的訂單 */
+const restock = (ids: string) => `UPDATE product_variants SET stock = stock + (
+    SELECT SUM(i.qty) FROM order_items i
+    WHERE i.variant_id = product_variants.id AND i.kind_snapshot = '現貨'
+      AND i.order_id IN (${ids}))
+  WHERE id IN (SELECT variant_id FROM order_items
+    WHERE kind_snapshot = '現貨' AND order_id IN (${ids}))`
+
+/**
+ * 後台依狀態流程改訂單狀態（規格 6.1）。取消、退回時現貨放回庫存。
+ * 每個語句都限定「狀態仍是 from」：和排程或另一個分頁同時改時只有一個成功，不會重複放回庫存。
+ * ponytail: 退回的客訂／代購商品不自動入庫，要賣就到庫存頁手動加。
+ */
+export async function changeOrderStatus(
+  db: D1Database,
+  no: string,
+  to: OrderStatus,
+  tracking: null | string
+) {
+  const row = await db
+    .prepare(`SELECT status FROM orders WHERE order_no = ?1`)
+    .bind(no)
+    .first<{ status: OrderStatus }>()
+  if (!row) return 'not_found'
+  const from = row.status
+  if (!canTransition(from, to)) return 'invalid'
+  const ids = `SELECT id FROM orders WHERE order_no = ?1 AND status = ?2`
+  const results = await db.batch([
+    ...(to === 'cancelled' || to === 'returned'
+      ? [db.prepare(restock(ids)).bind(no, from)]
+      : []),
+    db
+      .prepare(
+        `INSERT INTO order_events (order_id, from_status, to_status, note)
+         SELECT id, ?2, ?3, ?4 FROM orders WHERE id IN (${ids})`
+      )
+      .bind(no, from, to, EVENT_NOTE[to] ?? null),
+    db
+      .prepare(
+        `UPDATE orders SET status = ?3, stock_hold_until = NULL,
+           tracking_no = COALESCE(?4, tracking_no),
+           paid_at = IIF(?3 = 'pending_shipment', ?5, paid_at),
+           shipped_at = IIF(?3 = 'shipped', ?5, shipped_at)
+         WHERE order_no = ?1 AND status = ?2`
+      )
+      .bind(no, from, to, tracking, new Date().toISOString()),
+  ])
+  return results.at(-1)!.meta.changes ? 'ok' : 'conflict'
 }
 
 /**
@@ -306,17 +407,8 @@ export async function expireOrders(db: D1Database, now = new Date()) {
   const t = now.toISOString()
   const expired = `SELECT id FROM orders
     WHERE status = 'pending_payment' AND stock_hold_until < ?1`
-  const [restock, , cancel] = await db.batch([
-    db
-      .prepare(
-        `UPDATE product_variants SET stock = stock + (
-           SELECT SUM(i.qty) FROM order_items i
-           WHERE i.variant_id = product_variants.id AND i.kind_snapshot = '現貨'
-             AND i.order_id IN (${expired}))
-         WHERE id IN (SELECT variant_id FROM order_items
-           WHERE kind_snapshot = '現貨' AND order_id IN (${expired}))`
-      )
-      .bind(t),
+  const [restocked, , cancel] = await db.batch([
+    db.prepare(restock(expired)).bind(t),
     db
       .prepare(
         `INSERT INTO order_events (order_id, from_status, to_status, note)
@@ -331,5 +423,5 @@ export async function expireOrders(db: D1Database, now = new Date()) {
       )
       .bind(t),
   ])
-  return { cancelled: cancel.meta.changes, restocked: restock.meta.changes }
+  return { cancelled: cancel.meta.changes, restocked: restocked.meta.changes }
 }

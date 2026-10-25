@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 
 import { adminId, LOW_STOCK_KEY } from '../../app/lib/db/admin.server'
+import { changeOrderStatus } from '../../app/lib/db/orders.server'
+import { type OrderStatus, STATUS } from '../../app/lib/mock/admin'
 import {
   assignSkus,
   parseProductInput,
@@ -231,6 +233,51 @@ admin.put('/settings/low-stock', async (c) => {
     .bind(LOW_STOCK_KEY, String(value))
     .run()
   return c.body(null, 204)
+})
+
+/** 改訂單狀態（依規格 6.1 流程）；出貨要附物流單號 */
+admin.patch('/orders/:no', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    status?: unknown
+    tracking?: unknown
+  } | null
+  const to = body?.status as OrderStatus
+  if (typeof to !== 'string' || !(to in STATUS))
+    return c.json({ error: 'status 不正確' }, 400)
+  const tracking =
+    typeof body?.tracking === 'string' ? body.tracking.trim() : ''
+  if (to === 'shipped' && (!tracking || tracking.length > 50))
+    return c.json({ error: '請輸入物流單號' }, 400)
+  const r = await changeOrderStatus(
+    c.env.DB,
+    c.req.param('no'),
+    to,
+    to === 'shipped' ? tracking : null
+  )
+  if (r === 'not_found') return c.json({ error: '找不到訂單' }, 404)
+  if (r !== 'ok')
+    return c.json({ error: '訂單狀態已變更，請重新整理後再試' }, 409)
+  return c.body(null, 204)
+})
+
+/** 此單包材費（記帳簿） */
+admin.put('/orders/:no/pack', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    value?: unknown
+  } | null
+  const value = body?.value
+  if (
+    !Number.isInteger(value) ||
+    (value as number) < 0 ||
+    (value as number) > 1e5
+  )
+    return c.json({ error: 'value 不正確' }, 400)
+  const { meta } = await c.env.DB.prepare(
+    `UPDATE orders SET pack_cost = ?2 WHERE order_no = ?1`
+  )
+    .bind(c.req.param('no'), value)
+    .run()
+  return meta.changes ? c.body(null, 204) : c.json({ error: '找不到訂單' }, 404)
 })
 
 /** 照片上傳：瀏覽器已壓縮成 WebP（Safari 是 JPEG），直接存 R2 */
