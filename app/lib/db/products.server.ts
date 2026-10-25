@@ -1,5 +1,7 @@
 import type { CategoryId, Product, ProductKind } from '~/lib/catalog'
 
+import { imageUrl } from '~/lib/images'
+
 // 商品讀取：D1 → 前台既有的 Product 型別，畫面元件不用改。
 // React Router 的 loader 與 Hono 的 /api/products 共用。
 
@@ -39,9 +41,6 @@ const PRODUCT_SQL = `
   JOIN brands b ON b.id = p.brand_id
   JOIN categories c ON c.id = p.category_id
   WHERE p.status = 'active'`
-
-// ponytail: 站內靜態圖直接用；接 R2 後改成 img.<網域>/<key>（規格 5.2）
-const imageUrl = (key: null | string) => key ?? ''
 
 function toProduct(row: ProductRow, variants: VariantRow[]): Product {
   const mine = variants.filter((v) => v.product_id === row.id)

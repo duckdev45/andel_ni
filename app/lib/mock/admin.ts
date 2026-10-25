@@ -1,7 +1,7 @@
-// ponytail: 後台假資料與計算公式（搬自 Admin.dc.html 與其資料檔），之後換成 API 回傳同樣形狀即可。
-// 商品基本資料沿用 ~/lib/catalog，避免前後台兩份商品名稱/圖片不一致。
+// ponytail: 後台假資料（訂單、進貨、記帳設定）與計算公式（搬自 Admin.dc.html 與其資料檔）；商品已改接 D1。
+// 假訂單的商品名稱沿用 ~/lib/catalog。
 
-import { type CategoryId, isCustomOrder, PRODUCTS } from '~/lib/catalog'
+import { type CategoryId, type ProductKind, PRODUCTS } from '~/lib/catalog'
 
 /** 示範資料的「今天」 */
 export const TODAY = '2026-10-16'
@@ -103,12 +103,14 @@ export const brandCurrency = (brand: string): Currency =>
 
 // ── 商品 ─────────────────────────────────────────────
 
-/** 規格 8：products.type 只有現貨／客訂兩種 */
-export type ProductType = '客訂' | '現貨'
+export type ProductType = ProductKind
+export const PRODUCT_TYPES: ProductType[] = ['現貨', '部分現貨', '代購', '客訂']
 
 export type AdminVariant = { label: string; sku?: string; stock: number }
 
+/** 後台商品；資料來自 D1（app/lib/db/admin.server.ts） */
 export type AdminProduct = {
+  /** 與前台 Product.id 同格式（p01） */
   id: string
   /** 對外商品編號 AN0014；新商品存檔時給號 */
   code: string
@@ -122,52 +124,12 @@ export type AdminProduct = {
   active: boolean
   isNew: boolean
   description: string
+  /** 照片鍵（R2 物件鍵或站內路徑），網址用 imageUrl() */
   images: string[]
   /** 單一規格的庫存；多規格時看 variants */
   stock: number
   variants: null | { name: string; options: AdminVariant[] }
 }
-
-/** 設計稿後台的單一規格庫存（前台型錄多半是 0，後台示範用這組） */
-const STOCK_SEED: Record<string, number> = {
-  p03: 4,
-  p05: 2,
-  p06: 3,
-  p07: 12,
-  p08: 2,
-  p09: 4,
-  p10: 3,
-  p11: 2,
-  p12: 3,
-  p13: 1,
-  p15: 3,
-}
-
-export const SEED_PRODUCTS: AdminProduct[] = PRODUCTS.map((p) => ({
-  id: p.id,
-  code: p.code,
-  sku: p.sku,
-  name: p.name,
-  brand: p.brand,
-  cat: p.cat,
-  price: p.price,
-  type: isCustomOrder(p) ? '客訂' : '現貨',
-  active: true,
-  isNew: p.isNew,
-  description: p.description,
-  images: [p.image],
-  stock: p.variants ? 0 : (STOCK_SEED[p.id] ?? p.stock),
-  variants: p.variants
-    ? {
-        name: p.variants.name,
-        options: p.variants.options.map((o) => ({
-          label: o.label,
-          sku: o.sku,
-          stock: o.stock,
-        })),
-      }
-    : null,
-}))
 
 export const stockOf = (p: AdminProduct, opt?: null | string) => {
   if (!p.variants) return p.stock

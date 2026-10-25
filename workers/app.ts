@@ -10,6 +10,16 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE
 )
 
+// 商品照片（R2）；上傳時已設好 Content-Type 與長效快取
+async function image(env: Env, key: string) {
+  const obj = await env.IMAGES.get(key)
+  if (!obj) return new Response('Not Found', { status: 404 })
+  const headers = new Headers()
+  obj.writeHttpMetadata(headers)
+  headers.set('ETag', obj.httpEtag)
+  return new Response(obj.body, { headers })
+}
+
 async function route(request: Request, env: Env, ctx: ExecutionContext) {
   const handled = await handleAdmin(
     request,
@@ -25,6 +35,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext) {
   if (handled && !notFoundPage) return handled
 
   if (url.pathname.startsWith('/api/')) return api.fetch(request, env, ctx)
+  if (url.pathname.startsWith('/img/')) return image(env, url.pathname.slice(5))
 
   let routed: Request = request
   if (notFoundPage) {

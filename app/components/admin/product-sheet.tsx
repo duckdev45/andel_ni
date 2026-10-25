@@ -13,6 +13,7 @@ import {
 } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
 import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
+import { imageUrl } from '~/lib/images'
 import {
   type AdminProduct,
   avgCost,
@@ -21,14 +22,32 @@ import {
   type Currency,
   money,
   num,
+  PRODUCT_TYPES,
   type ProductType,
 } from '~/lib/mock/admin'
 import { cn } from '~/lib/utils'
 
-import { useAdmin } from './admin-store'
+import { uploadImage, useAdmin } from './admin-store'
 import { AdminSwitch, Field, FIELD, PANEL } from './parts'
 
 const MAX_IMAGES = 8
+
+/** 瀏覽器端壓縮：長邊 1600px，WebP（Safari 不支援輸出 WebP 時改 JPEG） */
+async function compress(file: File, max = 1600) {
+  const bmp = await createImageBitmap(file)
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bmp.width * scale)
+  canvas.height = Math.round(bmp.height * scale)
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+  bmp.close()
+  const encode = (type: string) =>
+    new Promise<Blob | null>((r) => canvas.toBlob(r, type, 0.85))
+  const webp = await encode('image/webp')
+  const blob = webp?.type === 'image/webp' ? webp : await encode('image/jpeg')
+  if (!blob) throw new Error('照片壓縮失敗')
+  return blob
+}
 
 type Draft = {
   name: string
@@ -82,6 +101,8 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
     }
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [uploading, setUploading] = useState(0)
+  const [saving, setSaving] = useState(false)
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }))
   const setCur = (cur: Currency) =>
     set({
@@ -100,24 +121,31 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
     ? Math.round(num(d.unit) * num(d.rate) * (1 + num(d.fx) / 100))
     : avgCost(purchases, product.id)
 
-  const addFiles = (files: FileList | null) => {
+  // ponytail: 經 Worker 上傳（照片壓縮後幾百 KB），不用預簽網址；縮圖與 1200×630 分享圖之後再做（規格 5.2）
+  const addFiles = async (files: FileList | null) => {
     const list = Array.from(files ?? []).filter((f) =>
       f.type.startsWith('image/')
     )
-    const room = MAX_IMAGES - d.images.length
+    const room = MAX_IMAGES - d.images.length - uploading
     if (room <= 0) return toast('最多 8 張照片')
-    // ponytail: 先用本機預覽網址佔位；接 R2 後改為瀏覽器壓縮 WebP＋預簽網址上傳（規格 5.2）
-    set({
-      images: [
-        ...d.images,
-        ...list.slice(0, room).map((f) => URL.createObjectURL(f)),
-      ],
-    })
+    const picked = list.slice(0, room)
+    setUploading((n) => n + picked.length)
+    for (const f of picked) {
+      try {
+        const key = await uploadImage(await compress(f))
+        setD((x) => ({ ...x, images: [...x.images, key] }))
+      } catch (e) {
+        toast(e instanceof Error ? e.message : '上傳失敗')
+      } finally {
+        setUploading((n) => n - 1)
+      }
+    }
   }
 
-  const save = () => {
+  const save = async () => {
     const e: Record<string, string> = {}
     if (!d.name.trim()) e.name = '請輸入商品名稱'
+    if (!d.brand.trim()) e.brand = '請輸入品牌'
     if (!(price > 0)) e.price = '請輸入售價'
     const opts = d.vOpts
       .filter((o) => o.label.trim())
@@ -132,36 +160,43 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
 
     const stock = d.hasVar ? 0 : Math.max(0, Math.round(num(d.stock)))
     const qty = d.hasVar ? opts.reduce((a, o) => a + o.stock, 0) : stock
-    saveProduct(
-      {
-        id: product?.id ?? null,
-        name: d.name.trim(),
-        brand: d.brand,
-        cat: d.cat,
-        price: Math.round(price),
-        type: d.type,
-        active: d.active,
-        isNew: d.isNew,
-        description: d.description,
-        images: d.images,
-        stock,
-        variants: d.hasVar ? { name: d.vName.trim(), options: opts } : null,
-      },
-      isNew && num(d.unit) > 0 && qty > 0
-        ? {
-            date: '2026-10-16',
-            opt: null,
-            qty,
-            cur: d.cur,
-            unit: num(d.unit),
-            rate: num(d.rate),
-            fx: num(d.fx),
-            note: '首批進貨',
-          }
-        : undefined
-    )
-    closeSheet()
-    toast(isNew ? '商品已上架' : '已儲存變更')
+    setSaving(true)
+    try {
+      await saveProduct(
+        {
+          id: product?.id ?? null,
+          name: d.name.trim(),
+          brand: d.brand.trim(),
+          cat: d.cat,
+          price: Math.round(price),
+          type: d.type,
+          active: d.active,
+          isNew: d.isNew,
+          description: d.description,
+          images: d.images,
+          stock,
+          variants: d.hasVar ? { name: d.vName.trim(), options: opts } : null,
+        },
+        isNew && num(d.unit) > 0 && qty > 0
+          ? {
+              date: '2026-10-16',
+              opt: null,
+              qty,
+              cur: d.cur,
+              unit: num(d.unit),
+              rate: num(d.rate),
+              fx: num(d.fx),
+              note: '首批進貨',
+            }
+          : undefined
+      )
+      closeSheet()
+      toast(isNew ? '商品已上架' : '已儲存變更')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '儲存失敗')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -190,7 +225,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
               >
                 <img
                   className='block size-full object-cover'
-                  src={src}
+                  src={imageUrl(src)}
                   alt={`商品照片 ${i + 1}`}
                 />
                 <button
@@ -222,13 +257,21 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
                 </button>
               </div>
             ))}
-            {d.images.length < MAX_IMAGES && (
+            {Array.from({ length: uploading }, (_, i) => (
+              <div
+                key={`up-${i}`}
+                className='grid aspect-square place-items-center border border-border bg-[#E4E4DE] text-[12px] text-muted-foreground'
+              >
+                上傳中…
+              </div>
+            ))}
+            {d.images.length + uploading < MAX_IMAGES && (
               <label
                 className='relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-[#8E8E87] bg-[#FBFBF9] p-1.5 text-center text-[12.5px] text-[#2E2E2A] focus-within:border-foreground'
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault()
-                  addFiles(e.dataTransfer.files)
+                  void addFiles(e.dataTransfer.files)
                 }}
               >
                 <ImagePlus
@@ -246,7 +289,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
                   multiple
                   accept='image/*'
                   onChange={(e) => {
-                    addFiles(e.target.files)
+                    void addFiles(e.target.files)
                     e.target.value = ''
                   }}
                 />
@@ -270,28 +313,26 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
         </Field>
 
         <div className='grid grid-cols-2 gap-3'>
-          <Field id={`${ids}-brand`} label='品牌'>
-            <Select
+          <Field id={`${ids}-brand`} label='品牌' error={errors.brand}>
+            {/* 可選既有品牌或直接輸入新品牌，存檔時自動建立 */}
+            <Input
+              id={`${ids}-brand`}
+              className={cn(FIELD, errors.brand && 'border-brand')}
               value={d.brand}
-              onValueChange={(brand) => {
+              list={`${ids}-brands`}
+              autoComplete='off'
+              aria-invalid={!!errors.brand}
+              onChange={(e) => {
+                const brand = e.target.value
                 set({ brand })
                 if (isNew) setCur(brandCurrency(brand))
               }}
-            >
-              <SelectTrigger
-                id={`${ids}-brand`}
-                className={cn(FIELD, 'w-full rounded-none shadow-none')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className='rounded-none'>
-                {brands.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
+            <datalist id={`${ids}-brands`}>
+              {brands.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
           </Field>
           <Field id={`${ids}-cat`} label='分類'>
             <Select
@@ -336,13 +377,16 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className='rounded-none'>
-                <SelectItem value='現貨'>現貨</SelectItem>
-                <SelectItem value='客訂'>客訂（代購）</SelectItem>
+                {PRODUCT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>
         </div>
-        {d.type === '客訂' && (
+        {(d.type === '客訂' || d.type === '代購') && (
           <p className='-mt-2 text-xs leading-normal text-muted-foreground'>
             客訂商品不適用 7 天鑑賞期，前台結帳時需勾選同意。
           </p>
@@ -554,7 +598,8 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
           type='button'
           variant='brand'
           className='h-12 w-full rounded-none text-[15px] font-normal'
-          onClick={save}
+          disabled={saving || uploading > 0}
+          onClick={() => void save()}
         >
           {isNew ? '上架商品' : '儲存變更'}
         </Button>
