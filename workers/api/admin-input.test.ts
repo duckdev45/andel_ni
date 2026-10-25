@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { assignSkus, parseProductInput, skuPrefix } from './admin-input.ts'
+import {
+  assignSkus,
+  parseLedgerSettings,
+  parseProductInput,
+  parsePurchaseInput,
+  skuPrefix,
+} from './admin-input.ts'
 
 const base = {
   name: ' Saint-Sulpice 卡夾 ',
@@ -67,4 +73,51 @@ test('skuPrefix 與 assignSkus：沿用舊 SKU，新選項接最大流水號', (
     `${prefix}-04`,
     `${prefix}-05`,
   ])
+})
+
+const purchase = {
+  pid: 'p04',
+  opt: '黑色',
+  date: '2026-10-25',
+  qty: 3,
+  cur: 'EUR',
+  unit: 95,
+  rate: 35.6,
+  fx: 1.5,
+  note: ' 三色 ',
+  toStock: true,
+}
+
+test('parsePurchaseInput：合法輸入、擋掉數量與日期錯誤', () => {
+  const r = parsePurchaseInput(purchase)
+  assert.ok('value' in r)
+  assert.equal(r.value.note, '三色')
+  assert.ok('error' in parsePurchaseInput({ ...purchase, qty: 0 }))
+  assert.ok('error' in parsePurchaseInput({ ...purchase, qty: 1.5 }))
+  assert.ok('error' in parsePurchaseInput({ ...purchase, date: '10/25' }))
+  assert.ok('error' in parsePurchaseInput({ ...purchase, cur: 'BTC' }))
+})
+
+const ledger = {
+  payFee: {
+    card: { pct: 2.8, fixed: 0 },
+    apple: { pct: 2.8, fixed: 0 },
+    atm: { pct: 1, fixed: 0 },
+    bnpl: { pct: 0, fixed: 0 },
+  },
+  pack: 45,
+  shipCost: { '711': 60, family: 60, home: 110 },
+  cardFx: 1.5,
+  rates: { EUR: 35.6, GBP: 41.5, JPY: 0.213, USD: 32.1, TWD: 1 },
+}
+
+test('parseLedgerSettings：合法通過、多餘欄位丟掉、缺欄位或負數擋下', () => {
+  assert.deepEqual(parseLedgerSettings({ ...ledger, evil: 1 }), ledger)
+  assert.equal(parseLedgerSettings({ ...ledger, pack: -1 }), null)
+  assert.equal(
+    parseLedgerSettings({ ...ledger, rates: { ...ledger.rates, JPY: 0 } }),
+    null
+  )
+  const { atm: _, ...noAtm } = ledger.payFee
+  assert.equal(parseLedgerSettings({ ...ledger, payFee: noAtm }), null)
 })

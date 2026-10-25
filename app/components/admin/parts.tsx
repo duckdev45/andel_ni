@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from 'react'
 
 import { Badge } from '~/components/ui/badge'
 import { Switch } from '~/components/ui/switch'
-import { num, type OrderStatus, STATUS } from '~/lib/mock/admin'
+import { num, type OrderStatus, STATUS } from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 /** 設計稿後台面板底色 */

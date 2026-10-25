@@ -12,8 +12,6 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
-import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
-import { imageUrl } from '~/lib/images'
 import {
   type AdminProduct,
   avgCost,
@@ -24,7 +22,10 @@ import {
   num,
   PRODUCT_TYPES,
   type ProductType,
-} from '~/lib/mock/admin'
+  taipeiDate,
+} from '~/lib/admin'
+import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
+import { imageUrl } from '~/lib/images'
 import { cn } from '~/lib/utils'
 
 import { uploadImage, useAdmin } from './admin-store'
@@ -179,9 +180,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
         },
         isNew && num(d.unit) > 0 && qty > 0
           ? {
-              date: '2026-10-16',
-              opt: null,
-              qty,
+              date: taipeiDate(),
               cur: d.cur,
               unit: num(d.unit),
               rate: num(d.rate),

@@ -23,7 +23,7 @@ import {
   type OrderStatus,
   PAY,
   SHIP,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 import { useAdmin } from './admin-store'

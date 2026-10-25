@@ -14,7 +14,7 @@ import {
   SHIP,
   skusOf,
   taipeiDate,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '總覽｜AndelNI' }]

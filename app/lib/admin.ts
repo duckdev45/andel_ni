@@ -1,5 +1,4 @@
-// 後台型別與計算公式（搬自 Admin.dc.html）。商品、訂單已接 D1。
-// ponytail: 進貨、記帳設定仍是前端記憶體的示範資料。
+// 後台型別與計算公式（搬自 Admin.dc.html）。資料都在 D1：讀 app/lib/db/admin.server.ts，寫 workers/api/admin.ts。
 
 import type { CategoryId, ProductKind } from '~/lib/catalog'
 
@@ -221,6 +220,7 @@ export function orderSummary(o: AdminOrder) {
 // ── 進貨 ─────────────────────────────────────────────
 
 export type Purchase = {
+  /** 顯示用編號 PO001 */
   id: string
   date: string
   pid: string
@@ -234,46 +234,6 @@ export type Purchase = {
   fx: number
   note: string
 }
-
-const po = (
-  id: string,
-  date: string,
-  pid: string,
-  qty: number,
-  cur: Currency,
-  unit: number,
-  rate: number,
-  note = ''
-): Purchase => ({
-  id,
-  date,
-  pid,
-  opt: null,
-  qty,
-  cur,
-  unit,
-  rate,
-  fx: 1.5,
-  note,
-})
-
-export const SEED_PURCHASES: Purchase[] = [
-  po('PO113', '2026-10-09', 'p12', 4, 'EUR', 75, 35.4),
-  po('PO112', '2026-10-05', 'p07', 15, 'EUR', 25, 35.3),
-  po('PO111', '2026-10-02', 'p01', 10, 'USD', 38, 32.0, '三款混裝'),
-  po('PO110', '2026-09-30', 'p05', 3, 'EUR', 245, 35.3),
-  po('PO109', '2026-09-28', 'p13', 2, 'EUR', 640, 35.1),
-  po('PO108', '2026-09-28', 'p14', 4, 'EUR', 300, 35.1, '三色'),
-  po('PO107', '2026-09-03', 'p02', 3, 'EUR', 250, 35.0),
-  po('PO106', '2026-08-25', 'p15', 5, 'EUR', 130, 34.9),
-  po('PO105', '2026-08-20', 'p06', 4, 'EUR', 160, 34.9),
-  po('PO104', '2026-07-22', 'p08', 3, 'EUR', 265, 34.8),
-  po('PO103', '2026-07-22', 'p03', 6, 'EUR', 70, 34.8),
-  po('PO102', '2026-07-20', 'p09', 6, 'JPY', 5500, 0.211, '日本購入'),
-  po('PO101', '2026-07-10', 'p10', 5, 'EUR', 32, 34.9),
-  po('PO100', '2026-07-08', 'p11', 4, 'USD', 42, 31.8),
-  po('PO099', '2026-07-01', 'p04', 6, 'EUR', 95, 34.7, '米白・黑色・卡其'),
-]
 
 /** 外幣 × 匯率 → 台幣，再加刷卡手續費 */
 export const purchaseCalc = (r: {
@@ -317,7 +277,8 @@ export type LedgerSettings = {
   rates: Record<Currency, number>
 }
 
-export const SEED_SETTINGS: LedgerSettings = {
+/** 記帳設定的預設值；後台改過就存在 settings 表（LEDGER_KEY） */
+export const LEDGER_DEFAULTS: LedgerSettings = {
   payFee: {
     card: { pct: 2.8, fixed: 0 },
     apple: { pct: 2.8, fixed: 0 },

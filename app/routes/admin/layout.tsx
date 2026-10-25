@@ -17,7 +17,7 @@ import { NotFound } from '~/components/store/not-found'
 import { SiteFooter } from '~/components/store/site-footer'
 import { SiteHeader, TopBar } from '~/components/store/site-header'
 import { dbFrom } from '~/lib/context'
-import { listAdminProducts } from '~/lib/db/admin.server'
+import { loadAdmin } from '~/lib/db/admin.server'
 import { listAdminOrders } from '~/lib/db/orders.server'
 import { ADMIN_CLOSED_HEADER } from '~/lib/seo'
 import { cn } from '~/lib/utils'
@@ -36,10 +36,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     throw new Response('Not Found', { status: 404 })
   }
   const db = dbFrom(context)
-  const [data, orders] = await Promise.all([
-    listAdminProducts(db),
-    listAdminOrders(db),
-  ])
+  const [data, orders] = await Promise.all([loadAdmin(db), listAdminOrders(db)])
   return { ...data, orders }
 }
 

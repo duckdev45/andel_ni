@@ -10,13 +10,10 @@ import {
   LOW_STOCK_DEFAULT,
   type OrderStatus,
   type Purchase,
-  SEED_PURCHASES,
-  SEED_SETTINGS,
   withStock,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 
-// 商品、庫存、訂單、低庫存門檻：D1（後台 layout 的 loader 讀，/api/admin/* 寫），畫面先更新再送出，失敗就重新讀取。
-// ponytail: 進貨、記帳設定仍是前端記憶體的示範資料（重新整理回到示範資料）。
+// 後台資料都在 D1：layout 的 loader 讀，/api/admin/* 寫。畫面先更新再送出，失敗就重新讀取。
 
 export type SheetState =
   | { id: null | string; type: 'product' }
@@ -27,6 +24,8 @@ export type AdminData = {
   lowAt: null | number
   orders: AdminOrder[]
   products: AdminProduct[]
+  purchases: Purchase[]
+  settings: LedgerSettings
 }
 
 type Db = {
@@ -37,9 +36,8 @@ type Db = {
   settings: LedgerSettings
 }
 
-const fromLoader = (data: AdminData) => ({
-  orders: data.orders,
-  products: data.products,
+const fromLoader = (data: AdminData): Db => ({
+  ...data,
   lowAt: data.lowAt ?? LOW_STOCK_DEFAULT,
 })
 
@@ -76,16 +74,12 @@ export async function uploadImage(blob: Blob) {
 
 function useAdminState(data: AdminData) {
   const revalidator = useRevalidator()
-  const [db, setDb] = useState<Db>(() => ({
-    purchases: SEED_PURCHASES,
-    settings: SEED_SETTINGS,
-    ...fromLoader(data),
-  }))
+  const [db, setDb] = useState(() => fromLoader(data))
   // loader 重新讀取後以資料庫為準
   const [synced, setSynced] = useState(data)
   if (synced !== data) {
     setSynced(data)
-    setDb((d) => ({ ...d, ...fromLoader(data) }))
+    setDb(fromLoader(data))
   }
   // sheet 關閉時保留最後內容，讓滑出動畫期間不會變空白
   const [sheet, setSheet] = useState<null | SheetState>(null)
@@ -173,7 +167,7 @@ function useAdminState(data: AdminData) {
       /** 新增或更新商品；新商品可附首批進貨（記帳簿示範資料）。失敗時丟出錯誤 */
       async saveProduct(
         product: Omit<AdminProduct, 'code' | 'id'> & { id: null | string },
-        firstPurchase?: Omit<Purchase, 'id' | 'pid'>
+        firstPurchase?: Omit<Purchase, 'id' | 'opt' | 'pid' | 'qty'>
       ) {
         const { id, ...rest } = product
         const body = {
@@ -193,29 +187,49 @@ function useAdminState(data: AdminData) {
           code ? 'PUT' : 'POST',
           body
         )
+        // 首批進貨：每個有庫存的規格各記一筆（庫存已在商品裡，不再加）
         if (firstPurchase && saved.id) {
-          const pid = saved.id
-          setDb((d) => ({
-            ...d,
-            purchases: [
-              { ...firstPurchase, id: nextPoId(d.purchases), pid },
-              ...d.purchases,
-            ],
-          }))
+          const lots = rest.variants
+            ? rest.variants.options.map((o) => ({ opt: o.label, qty: o.stock }))
+            : [{ opt: null, qty: rest.stock }]
+          await Promise.all(
+            lots
+              .filter((l) => l.qty > 0)
+              .map((l) =>
+                api('/purchases', 'POST', {
+                  ...firstPurchase,
+                  ...l,
+                  pid: saved.id,
+                  toStock: false,
+                })
+              )
+          ).catch(() => toast('商品已上架，但首批進貨沒記到，請到記帳簿補登'))
         }
         await revalidator.revalidate()
         return saved.code
       },
       adjustStock,
       addPurchase(rec: Omit<Purchase, 'id'>, toStock: boolean) {
+        // 先用暫時編號顯示，存檔後重新讀取換成正式編號
         setDb((d) => ({
           ...d,
           purchases: [{ ...rec, id: nextPoId(d.purchases) }, ...d.purchases],
+          products: toStock
+            ? d.products.map((p) =>
+                p.id === rec.pid ? withStock(p, rec.opt, (n) => n + rec.qty) : p
+              )
+            : d.products,
         }))
-        if (toStock) adjustStock(rec.pid, rec.opt, rec.qty)
+        api('/purchases', 'POST', { ...rec, toStock })
+          .then(() => revalidator.revalidate())
+          .catch(fail)
       },
       updateSettings(fn: (s: LedgerSettings) => LedgerSettings) {
         setDb((d) => ({ ...d, settings: fn(d.settings) }))
+      },
+      /** 設定欄位離開時存檔 */
+      saveSettings() {
+        api('/settings/ledger', 'PUT', db.settings).catch(fail)
       },
       setLowAt(n: number) {
         const lowAt = Math.max(0, n)

@@ -32,7 +32,7 @@ import {
   SHIP,
   type ShipMethod,
   taipeiDate,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '記帳簿｜AndelNI' }]
@@ -554,8 +554,11 @@ export default function Ledger() {
 }
 
 function SettingsPanel() {
-  const { settings, updateSettings } = useAdmin()
-  const done = () => toast('設定已更新，損益已重新計算')
+  const { settings, saveSettings, updateSettings } = useAdmin()
+  const done = () => {
+    saveSettings()
+    toast('設定已更新，損益已重新計算')
+  }
   const patch = (fn: (s: LedgerSettings) => LedgerSettings) =>
     updateSettings(fn)
 

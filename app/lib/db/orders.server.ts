@@ -6,13 +6,9 @@ import type {
   VariantRow,
 } from '../../../workers/api/order-input'
 
+import { type AdminOrder, canTransition, type OrderStatus } from '~/lib/admin'
 import { adminId } from '~/lib/db/admin.server'
 import { imageUrl } from '~/lib/images'
-import {
-  type AdminOrder,
-  canTransition,
-  type OrderStatus,
-} from '~/lib/mock/admin'
 import { PAY_OPTIONS, SHIP_OPTIONS } from '~/lib/mock/checkout'
 
 // 訂單（規格 6）：下單寫入、會員看自己的訂單、後台列表與改狀態、逾時未付款自動取消。
