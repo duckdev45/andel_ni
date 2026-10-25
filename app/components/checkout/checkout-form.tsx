@@ -15,7 +15,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Textarea } from '~/components/ui/textarea'
-import { logout, type User } from '~/lib/auth'
+import { useAuth, type User } from '~/lib/auth'
 import { formatPrice } from '~/lib/catalog'
 import {
   createOrder,
@@ -49,6 +49,7 @@ export function CheckoutForm({
   items: CartItem[]
   onPlaced: (order: MockOrder) => void
 }) {
+  const { logout } = useAuth()
   const [name, setName] = useState(user.name)
   const [phone, setPhone] = useState(user.phone)
   const [ship, setShip] = useState<ShipId>('711')
@@ -128,7 +129,7 @@ export function CheckoutForm({
         <button
           type='button'
           className='min-h-11 text-[13px] text-muted-foreground underline'
-          onClick={logout}
+          onClick={() => void logout()}
         >
           不是你？登出
         </button>

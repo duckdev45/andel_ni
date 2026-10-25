@@ -13,7 +13,7 @@ import {
 } from '~/components/account/auth-layout'
 import { CodeField, Field, isCode, isEmail } from '~/components/account/field'
 import { Button } from '~/components/ui/button'
-import { logout } from '~/lib/auth'
+import { useAuth } from '~/lib/auth'
 import { privateMeta } from '~/lib/seo'
 
 export const meta: Route.MetaFunction = () => privateMeta('忘記密碼')
@@ -25,7 +25,9 @@ const STEPS = [
 ]
 
 /** 規格 3.4：Email → 固定訊息（不透露帳號是否存在）→ 驗證碼＋新密碼 → 全部裝置登出 */
+// ponytail: 還是原型（要寄驗證碼，等寄信服務）；登入頁的「忘記密碼」先改成私訊 IG
 export default function ForgotPassword() {
+  const { logout } = useAuth()
   const [step, setStep] = useState(0)
   const [email, setEmail] = useState('')
 
@@ -42,7 +44,7 @@ export default function ForgotPassword() {
           onBack={() => setStep(0)}
           onDone={() => {
             // 改密碼後該帳號所有裝置強制登出（含這台）
-            logout()
+            void logout()
             setStep(2)
           }}
         />

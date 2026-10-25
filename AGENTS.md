@@ -7,7 +7,7 @@
 - React Router v8（framework 模式、SSR）跑在 Cloudflare Worker（`workers/app.ts`）。
 - `/api/*` 是 Hono（`workers/api/`）；其餘交給 React Router，loader 用 `dbFrom(context)` 取 D1（`app/lib/context.ts`）。
 - D1 schema 在 `migrations/`（規格第 8 節）；商品讀取 `app/lib/db/products.server.ts`（loader 與 API 共用）。
-- 已接 D1：首頁、商品頁、sitemap、`/api/products`、後台商品與庫存（讀 `app/lib/db/admin.server.ts`，寫 `workers/api/admin.ts`）。照片存 R2（binding `IMAGES`，網址 `imageUrl()`）。仍是假資料：購物車（localStorage）、登入、會員、結帳、後台訂單／進貨／記帳（`app/lib/mock/*`）；`app/lib/catalog.ts` 只剩型別、工具與種子資料來源。
+- 已接 D1：首頁、商品頁、sitemap、`/api/products`、後台商品與庫存（讀 `app/lib/db/admin.server.ts`，寫 `workers/api/admin.ts`）。照片存 R2（binding `IMAGES`，網址 `imageUrl()`）。會員（註冊、登入、session 在 D1，`useUser()` 讀 root loader，`useAuth()` 呼叫 `/api/auth/*`；尚無 Email 驗證）。仍是假資料：購物車（localStorage）、會員訂單／收件資訊、結帳、後台訂單／進貨／記帳（`app/lib/mock/*`）；`app/lib/catalog.ts` 只剩型別、工具與種子資料來源。
 - 環境：正式 `andelni`（main）、staging `andelni-staging`（dev），見規格 11.4。
 - 後台存取保護：密碼＋驗證器 App，在 Worker 層（`workers/auth/admin.ts`）；設定 `pnpm admin:setup`，規劃見 `docs/後台存取保護.md`。
 - UI：Tailwind v4 + shadcn/ui（`app/components/ui`，直角）。色票、字體 token 在 `app/app.css`。

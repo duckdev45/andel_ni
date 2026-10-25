@@ -9,7 +9,7 @@ import { ActiveOrderCard, OrderList, ORDERS } from '~/components/account/orders'
 import { AccountSettings } from '~/components/account/settings'
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { Eyebrow, PageTitle } from '~/components/store/typography'
-import { logout, type User, useUser } from '~/lib/auth'
+import { useAuth, type User, useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
 import { getProduct } from '~/lib/catalog'
 import { isActiveOrder, MOCK_ADDRESSES } from '~/lib/mock/account'
@@ -52,6 +52,7 @@ function LoggedOut() {
 }
 
 function Member({ user }: { user: User }) {
+  const { logout } = useAuth()
   const [params] = useSearchParams()
   const { wish } = useCart()
   const raw = params.get('tab')
@@ -125,7 +126,7 @@ function Member({ user }: { user: User }) {
           <button
             type='button'
             className='min-h-12 border-r border-b border-border px-3.5 text-sm text-muted-foreground underline underline-offset-4 lg:border-0 lg:text-left'
-            onClick={() => logout()}
+            onClick={() => void logout()}
           >
             登出
           </button>

@@ -1,8 +1,9 @@
-import { useSyncExternalStore } from 'react'
+import type { loader as rootLoader } from '~/root'
 
-import { localStore } from '~/lib/local-store'
+import { useRevalidator, useRouteLoaderData } from 'react-router'
 
-// ponytail: 後端未接，登入狀態先存瀏覽器假裝有 session；接 Hono 後改成 HttpOnly cookie + /api/me。
+// 會員登入狀態：伺服器端 session（HttpOnly cookie，app/lib/db/users.server.ts），root loader 讀出目前會員。
+// 登入、登出等動作呼叫 /api/auth/*（workers/api/auth.ts），完成後重新讀取 root loader。
 
 export type User = {
   name: string
@@ -12,34 +13,39 @@ export type User = {
   emailVerified: boolean
 }
 
-const store = localStore<User | null>('andelni:mock-session', null)
-
 export function useUser() {
-  return useSyncExternalStore(store.subscribe, store.get, store.getServer)
+  return useRouteLoaderData<typeof rootLoader>('root')?.user ?? null
 }
 
-/** 假登入：任何 Email + 8 碼以上密碼都成功 */
-export function mockLogin(email: string, name = '王小安') {
-  store.set(() => ({
-    name,
-    email,
-    phone: '0912345678',
-    emailVerified: true,
-  }))
+/** 呼叫會員 API；失敗時丟出伺服器的錯誤訊息 */
+async function call(path: string, method: string, body: unknown = {}) {
+  const res = await fetch(`/api/auth${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (res.ok) return
+  const data = (await res.json().catch(() => null)) as null | {
+    error?: string
+  }
+  throw new Error(data?.error ?? `發生錯誤（${res.status}），請稍後再試`)
 }
 
-export function mockRegister(user: Omit<User, 'emailVerified'>) {
-  store.set(() => ({ ...user, emailVerified: false }))
-}
-
-export function mockVerifyEmail() {
-  store.set((u) => (u ? { ...u, emailVerified: true } : u))
-}
-
-export function mockUpdateUser(patch: Partial<User>) {
-  store.set((u) => (u ? { ...u, ...patch } : u))
-}
-
-export function logout() {
-  store.set(() => null)
+export function useAuth() {
+  const { revalidate } = useRevalidator()
+  const run = async (path: string, method: string, body?: unknown) => {
+    await call(path, method, body)
+    await revalidate()
+  }
+  return {
+    login: (email: string, password: string) =>
+      run('/login', 'POST', { email, password }),
+    register: (u: Omit<User, 'emailVerified'> & { password: string }) =>
+      run('/register', 'POST', u),
+    logout: () => run('/logout', 'POST'),
+    updateUser: (patch: Pick<User, 'name' | 'phone'>) =>
+      run('/me', 'PATCH', patch),
+    changePassword: (current: string, next: string) =>
+      call('/me/password', 'PUT', { current, next }),
+  }
 }

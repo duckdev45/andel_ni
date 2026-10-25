@@ -9,18 +9,27 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  type ShouldRevalidateFunction,
 } from 'react-router'
 
 import { Toaster } from '~/components/ui/sonner'
 import { CartProvider } from '~/lib/cart'
+import { dbFrom } from '~/lib/context'
+import { getSessionUser } from '~/lib/db/users.server'
 import { siteOrigin } from '~/lib/seo'
 
-// 正式網址給各路由的 canonical／OG 用；不會變，換頁時不必重抓
-export function loader({ request }: Route.LoaderArgs) {
-  return { origin: siteOrigin(request) }
+// 正式網址給各路由的 canonical／OG 用；目前登入的會員給 useUser()
+export async function loader({ context, request }: Route.LoaderArgs) {
+  const session = await getSessionUser(dbFrom(context), request)
+  return { origin: siteOrigin(request), user: session?.user ?? null }
 }
 
-export const shouldRevalidate = () => false
+// 換頁不必重抓；登入、登出後 useAuth() 會呼叫 revalidate（同一網址）重新讀取
+export const shouldRevalidate: ShouldRevalidateFunction = ({
+  currentUrl,
+  defaultShouldRevalidate,
+  nextUrl,
+}) => currentUrl.href === nextUrl.href && defaultShouldRevalidate
 
 export const links: Route.LinksFunction = () => [
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

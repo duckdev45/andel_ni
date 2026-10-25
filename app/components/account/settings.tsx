@@ -1,14 +1,9 @@
 import { useState } from 'react'
 
-import {
-  CodeField,
-  Field,
-  isCode,
-  isEmail,
-  isPhone,
-} from '~/components/account/field'
+import { Field, isPhone } from '~/components/account/field'
 import { Button } from '~/components/ui/button'
-import { mockUpdateUser, type User } from '~/lib/auth'
+import { useAuth, type User } from '~/lib/auth'
+import { SITE } from '~/lib/seo'
 
 function Section({
   children,
@@ -22,6 +17,14 @@ function Section({
       <h3 className='m-0 text-base font-bold'>{title}</h3>
       {children}
     </section>
+  )
+}
+
+function Failed({ children }: { children: React.ReactNode }) {
+  return (
+    <span className='text-[13px] text-brand' role='alert'>
+      {children}
+    </span>
   )
 }
 
@@ -45,9 +48,11 @@ export function AccountSettings({ user }: { user: User }) {
 }
 
 function ProfileForm({ user }: { user: User }) {
+  const { updateUser } = useAuth()
   const [v, setV] = useState({ name: user.name, phone: user.phone })
   const [tried, setTried] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   const errors = {
     name: !v.name.trim() && '請填寫姓名',
     phone: !isPhone(v.phone) && '請填寫 09 開頭的 10 碼手機號碼',
@@ -63,18 +68,23 @@ function ProfileForm({ user }: { user: User }) {
       <form
         className='grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4'
         noValidate
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
           if (errors.name || errors.phone) {
             setTried(true)
             return
           }
-          mockUpdateUser({
-            name: v.name.trim(),
-            phone: v.phone.replace(/[\s-]/g, ''),
-          })
-          setTried(false)
-          setSaved(true)
+          try {
+            await updateUser({
+              name: v.name.trim(),
+              phone: v.phone.replace(/[\s-]/g, ''),
+            })
+            setTried(false)
+            setError('')
+            setSaved(true)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : '儲存失敗')
+          }
         }}
       >
         <Field
@@ -102,119 +112,40 @@ function ProfileForm({ user }: { user: User }) {
             儲存變更
           </Button>
           {saved && <Saved>已儲存</Saved>}
+          {error && <Failed>{error}</Failed>}
         </div>
       </form>
     </Section>
   )
 }
 
+// ponytail: 更換 Email 要寄驗證碼到新信箱，等寄信服務接好再開放（規格 3.6）
 function EmailChange({ user }: { user: User }) {
-  const [stage, setStage] = useState<'code' | 'enter' | 'idle'>('idle')
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [tried, setTried] = useState(false)
-  const [done, setDone] = useState(false)
-  const reset = (to: typeof stage) => {
-    setStage(to)
-    setTried(false)
-    setCode('')
-  }
-
   return (
     <Section title='Email'>
-      <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
-        <span className='flex flex-col gap-0.5'>
-          <span className='font-mono text-[15px] break-all'>{user.email}</span>
-          <span className='text-[12.5px] text-muted-foreground'>
-            {user.emailVerified ? '已驗證' : '尚未驗證，驗證後才能結帳'}
-          </span>
-        </span>
-        {stage === 'idle' && (
-          <Button
-            variant='outline'
-            className='h-11 text-[13px]'
-            onClick={() => {
-              reset('enter')
-              setDone(false)
-            }}
-          >
-            更換 Email
-          </Button>
-        )}
-      </div>
+      <span className='font-mono text-[15px] break-all'>{user.email}</span>
       <p className='m-0 text-[13px] leading-[1.7] text-muted-foreground'>
-        更換 Email 需要對新信箱重新驗證：我們會寄 6 位數驗證碼到新的
-        Email，驗證完成前仍以原本的 Email 登入與接收訂單通知。
-      </p>
-      {done && <Saved>Email 已更新，之後請用新的 Email 登入</Saved>}
-      {stage !== 'idle' && (
-        <form
-          className='flex flex-col gap-4 border border-[#E4E4DE] bg-[#FBFBF9] p-[18px]'
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (stage === 'enter') {
-              if (!isEmail(email)) return setTried(true)
-              reset('code')
-              return
-            }
-            if (!isCode(code)) return setTried(true)
-            mockUpdateUser({ email: email.trim(), emailVerified: true })
-            reset('idle')
-            setEmail('')
-            setDone(true)
-          }}
+        需要更換 Email 請私訊 IG{' '}
+        <a
+          className='underline underline-offset-4'
+          href={SITE.instagram}
+          rel='noreferrer'
+          target='_blank'
         >
-          {stage === 'enter' ? (
-            <Field
-              id='s-new-email'
-              type='email'
-              name='email'
-              className='font-mono'
-              autoComplete='email'
-              error={tried && !isEmail(email) && '請輸入正確的 Email'}
-              label='新的 Email'
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          ) : (
-            <>
-              <p className='m-0 text-sm'>
-                驗證碼已寄到{' '}
-                <span className='font-mono font-medium break-all'>{email}</span>
-                ，10 分鐘內有效。
-              </p>
-              <CodeField
-                id='s-email-code'
-                error={tried && !isCode(code) && '請輸入 6 位數字驗證碼'}
-                value={code}
-                onValue={setCode}
-              />
-            </>
-          )}
-          <div className='flex flex-wrap gap-2.5'>
-            <Button type='submit' className='h-[52px] px-6 text-[15px]'>
-              {stage === 'enter' ? '寄送驗證碼' : '驗證並更換'}
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-[52px] px-6 text-[15px]'
-              onClick={() => reset('idle')}
-            >
-              取消
-            </Button>
-          </div>
-        </form>
-      )}
+          {SITE.instagramHandle}
+        </a>
+        。
+      </p>
     </Section>
   )
 }
 
 function PasswordForm() {
+  const { changePassword } = useAuth()
   const [v, setV] = useState({ confirm: '', current: '', next: '' })
   const [tried, setTried] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   const errors = {
     confirm: v.confirm !== v.next && '兩次輸入的密碼不一致',
     current: !v.current && '請輸入目前的密碼',
@@ -232,15 +163,21 @@ function PasswordForm() {
       <form
         className='grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4'
         noValidate
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
           if (Object.values(errors).some(Boolean)) {
             setTried(true)
             return
           }
-          setV({ confirm: '', current: '', next: '' })
-          setTried(false)
-          setSaved(true)
+          try {
+            await changePassword(v.current, v.next)
+            setV({ confirm: '', current: '', next: '' })
+            setTried(false)
+            setError('')
+            setSaved(true)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : '更新失敗')
+          }
         }}
       >
         <div className='col-span-full sm:max-w-[calc(50%-8px)]'>
@@ -281,6 +218,7 @@ function PasswordForm() {
             更新密碼
           </Button>
           {saved && <Saved>密碼已更新，其他裝置已登出</Saved>}
+          {error && <Failed>{error}</Failed>}
         </div>
       </form>
     </Section>
