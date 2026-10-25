@@ -16,6 +16,8 @@
     "enabled": true,
   },
   "upload_source_maps": true,
+  // 每 15 分鐘：逾時未付款訂單自動取消（app/lib/db/orders.server.ts expireOrders）
+  "triggers": { "crons": ["*/15 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",
@@ -43,6 +45,7 @@
   "env": {
     "staging": {
       "name": "andelni-staging",
+      "triggers": { "crons": ["*/15 * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",

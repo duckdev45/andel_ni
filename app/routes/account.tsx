@@ -5,13 +5,20 @@ import { Link, useSearchParams } from 'react-router'
 import { Addresses } from '~/components/account/addresses'
 import { JoinAside } from '~/components/account/auth-layout'
 import { LoginForm } from '~/components/account/login-form'
-import { ActiveOrderCard, OrderList, ORDERS } from '~/components/account/orders'
+import {
+  ActiveOrderCard,
+  isActiveOrder,
+  OrderList,
+} from '~/components/account/orders'
 import { AccountSettings } from '~/components/account/settings'
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { Eyebrow, PageTitle } from '~/components/store/typography'
 import { useAuth, type User, useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
-import { isActiveOrder, MOCK_ADDRESSES } from '~/lib/mock/account'
+import { dbFrom } from '~/lib/context'
+import { listOrders, type OrderDetail } from '~/lib/db/orders.server'
+import { getSessionUser } from '~/lib/db/users.server'
+import { MOCK_ADDRESSES } from '~/lib/mock/account'
 import { useProducts } from '~/lib/products-client'
 import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
@@ -27,11 +34,19 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number][0]
 
-const activeOrders = ORDERS.filter((o) => isActiveOrder(o.status))
+export async function loader({ context, request }: Route.LoaderArgs) {
+  const db = dbFrom(context)
+  const me = await getSessionUser(db, request)
+  return { orders: me ? await listOrders(db, me.id) : [] }
+}
 
-export default function Account() {
+export default function Account({ loaderData }: Route.ComponentProps) {
   const user = useUser()
-  return user ? <Member user={user} /> : <LoggedOut />
+  return user ? (
+    <Member orders={loaderData.orders} user={user} />
+  ) : (
+    <LoggedOut />
+  )
 }
 
 function LoggedOut() {
@@ -51,14 +66,15 @@ function LoggedOut() {
   )
 }
 
-function Member({ user }: { user: User }) {
+function Member({ orders, user }: { orders: OrderDetail[]; user: User }) {
+  const activeOrders = orders.filter(isActiveOrder)
   const { logout } = useAuth()
   const [params] = useSearchParams()
   const { wish } = useCart()
   const raw = params.get('tab')
   const tab: Tab = TABS.some(([k]) => k === raw) ? (raw as Tab) : 'overview'
   const badges: Partial<Record<Tab, number>> = {
-    orders: ORDERS.length,
+    orders: orders.length,
     wish: wish.length,
   }
   const title = TABS.find(([k]) => k === tab)![1]
@@ -74,7 +90,7 @@ function Member({ user }: { user: User }) {
         </div>
         <dl className='m-0 grid w-full grid-cols-3 border-t border-line sm:w-auto sm:min-w-[420px]'>
           <Stat label='進行中訂單' value={activeOrders.length} />
-          <Stat label='累計訂單' value={ORDERS.length} />
+          <Stat label='累計訂單' value={orders.length} />
           <Stat brand label='收藏' value={wish.length} />
         </dl>
       </div>
@@ -137,13 +153,17 @@ function Member({ user }: { user: User }) {
           aria-labelledby='account-h'
         >
           {tab === 'overview' ? (
-            <Overview user={user} wishCount={wish.length} />
+            <Overview
+              activeOrders={activeOrders}
+              user={user}
+              wishCount={wish.length}
+            />
           ) : (
             <h2 id='account-h' className='m-0 text-[22px] font-black'>
               {title}
             </h2>
           )}
-          {tab === 'orders' && <OrderList orders={ORDERS} />}
+          {tab === 'orders' && <OrderList orders={orders} />}
           {tab === 'wish' && <Wish ids={wish} />}
           {tab === 'address' && (
             <>
@@ -184,7 +204,15 @@ function Stat({
   )
 }
 
-function Overview({ user, wishCount }: { user: User; wishCount: number }) {
+function Overview({
+  activeOrders,
+  user,
+  wishCount,
+}: {
+  activeOrders: OrderDetail[]
+  user: User
+  wishCount: number
+}) {
   const cell =
     'flex flex-col gap-2 border-r border-b border-border p-[18px] text-[15px]'
   const more = 'self-start py-1 text-[13px] underline underline-offset-4'
@@ -200,8 +228,13 @@ function Overview({ user, wishCount }: { user: User; wishCount: number }) {
           </Link>
         </div>
         {activeOrders.map((o) => (
-          <ActiveOrderCard key={o.id} order={o} />
+          <ActiveOrderCard key={o.no} order={o} />
         ))}
+        {!activeOrders.length && (
+          <p className='m-0 border-t border-line py-6 text-[15px]'>
+            目前沒有進行中的訂單。
+          </p>
+        )}
       </div>
       <div className='grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] border-t border-l border-t-line border-l-border'>
         <div className={cell}>

@@ -18,10 +18,8 @@ import { Textarea } from '~/components/ui/textarea'
 import { useAuth, type User } from '~/lib/auth'
 import { formatPrice } from '~/lib/catalog'
 import {
-  createOrder,
   isCustomLine,
   MOCK_STORES,
-  type MockOrder,
   optionText,
   PAY_OPTIONS,
   type PayId,
@@ -39,7 +37,7 @@ type Errors = Partial<
   Record<'addr' | 'city' | 'consent' | 'name' | 'phone' | 'store', string>
 >
 
-/** 收件人、配送、付款、備註＋右側訂單摘要。送出後產生假訂單交給 onPlaced */
+/** 收件人、配送、付款、備註＋右側訂單摘要。送出後建立訂單（/api/orders），把訂單編號交給 onPlaced */
 export function CheckoutForm({
   user,
   items,
@@ -47,7 +45,7 @@ export function CheckoutForm({
 }: {
   user: User
   items: CartItem[]
-  onPlaced: (order: MockOrder) => void
+  onPlaced: (orderNo: string) => void
 }) {
   const { logout } = useAuth()
   const [name, setName] = useState(user.name)
@@ -60,6 +58,9 @@ export function CheckoutForm({
   const [note, setNote] = useState('')
   const [consent, setConsent] = useState(false)
   const [tried, setTried] = useState(false)
+  const [busy, setBusy] = useState(false)
+  // 伺服器擋下的原因（庫存不足、已下架…）
+  const [failed, setFailed] = useState('')
 
   const subtotal = items.reduce((n, i) => n + i.qty * i.product.price, 0)
   const fee = shippingFee(subtotal, ship)
@@ -91,30 +92,47 @@ export function CheckoutForm({
     setStore({ chain: ship, ...list[idx] })
   }
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (Object.keys(errors).length) {
       setTried(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    onPlaced(
-      createOrder(
-        {
-          name: name.trim(),
-          phone: phone.replace(/[\s-]/g, ''),
-          email: user.email,
-          ship,
-          destination: pickedStore
-            ? `${shipOpt.label.replace('取貨', '')} ${pickedStore.name}（${pickedStore.address}）`
-            : `${city.trim()} ${addr.trim()}`,
-          pay,
-          note: note.trim(),
-          consentNoReturn: hasCustom && consent,
+    setBusy(true)
+    setFailed('')
+    // 金額由伺服器依資料庫價格重算，這裡只送購物車與收件資料
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lines: items.map(({ productId, qty, variant }) => ({
+          productId,
+          variant,
+          qty,
+        })),
+        name: name.trim(),
+        phone: phone.replace(/[\s-]/g, ''),
+        ship,
+        store: pickedStore && {
+          id: pickedStore.id,
+          name: pickedStore.name,
+          address: pickedStore.address,
         },
-        items
-      )
-    )
+        address: isHome ? `${city.trim()} ${addr.trim()}` : '',
+        pay,
+        note: note.trim(),
+        consent: hasCustom && consent,
+      }),
+    }).catch(() => null)
+    const data = (await res?.json().catch(() => null)) as null | {
+      error?: string
+      no?: string
+    }
+    if (res?.ok && data?.no) return onPlaced(data.no)
+    setBusy(false)
+    setFailed(data?.error ?? '下單失敗，請稍後再試')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -134,6 +152,14 @@ export function CheckoutForm({
           不是你？登出
         </button>
       </div>
+      {failed && (
+        <div
+          className='mb-6 border border-brand px-[18px] py-3.5 text-sm text-brand'
+          role='alert'
+        >
+          {failed}
+        </div>
+      )}
       {errorCount > 0 && (
         <div
           className='mb-6 border border-brand px-[18px] py-3.5 text-sm text-brand'
@@ -147,7 +173,7 @@ export function CheckoutForm({
         className='flex flex-wrap items-start gap-10'
         noValidate
         aria-label='填寫結帳資料'
-        onSubmit={onSubmit}
+        onSubmit={(e) => void onSubmit(e)}
       >
         <div className='flex min-w-0 flex-[999_1_620px] flex-col gap-10'>
           <Section no='01' title='收件人'>
@@ -361,9 +387,10 @@ export function CheckoutForm({
               type='submit'
               variant='brand'
               className='min-h-14 justify-between px-5 text-base'
+              disabled={busy}
               size='lg'
             >
-              <span>{payOpt.submit}</span>
+              <span>{busy ? '送出中…' : payOpt.submit}</span>
               <span className='font-mono text-sm'>
                 {formatPrice(subtotal + fee)}
               </span>

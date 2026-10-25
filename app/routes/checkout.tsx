@@ -70,10 +70,11 @@ export default function CheckoutPage() {
           key={user.email}
           items={items}
           user={user}
-          onPlaced={(order) => {
+          onPlaced={(no) => {
             setPlaced(true)
+            // 伺服器已清空會員購物車；這裡同步畫面
             clear()
-            navigate(`/checkout/done?order=${order.no}`)
+            navigate(`/checkout/done?order=${no}`)
           }}
         />
       )}
