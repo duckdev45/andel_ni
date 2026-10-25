@@ -16,6 +16,8 @@ import { AdminProvider, useAdmin } from '~/components/admin/admin-store'
 import { NotFound } from '~/components/store/not-found'
 import { SiteFooter } from '~/components/store/site-footer'
 import { SiteHeader, TopBar } from '~/components/store/site-header'
+import { dbFrom } from '~/lib/context'
+import { listAdminProducts } from '~/lib/db/admin.server'
 import { ADMIN_CLOSED_HEADER } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
@@ -28,11 +30,11 @@ export const meta: Route.MetaFunction = ({ error }) => [
 
 // 讓前台用連結切進後台時也會向伺服器發資料請求，經過 Worker 的密碼檢查。
 // Worker 判定後台未開放時帶上標頭：回 404，對外看起來就是不存在的頁面。
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ context, request }: Route.LoaderArgs) {
   if (request.headers.has(ADMIN_CLOSED_HEADER)) {
     throw new Response('Not Found', { status: 404 })
   }
-  return null
+  return listAdminProducts(dbFrom(context))
 }
 
 export function ErrorBoundary() {
@@ -54,9 +56,9 @@ const NAV = [
   { to: '/admin/ledger', label: '記帳簿', title: '記帳簿', icon: BookOpenText },
 ]
 
-export default function AdminLayout() {
+export default function AdminLayout({ loaderData }: Route.ComponentProps) {
   return (
-    <AdminProvider>
+    <AdminProvider data={loaderData}>
       <Shell />
       <AdminSheet />
     </AdminProvider>

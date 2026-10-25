@@ -4,6 +4,7 @@ import {
   getProductByCode,
   listProducts,
 } from '../../app/lib/db/products.server'
+import { admin } from './admin'
 
 // /api/*：Hono（規格 D3）。後台 API（/api/admin/*）會先經過 workers/auth/admin.ts 的檢查。
 export const api = new Hono<{ Bindings: Env }>().basePath('/api')
@@ -19,6 +20,8 @@ api.get('/products/:code', async (c) => {
   )
   return product ? c.json(product) : c.json({ error: 'Not Found' }, 404)
 })
+
+api.route('/admin', admin)
 
 api.notFound((c) => c.json({ error: 'Not Found' }, 404))
 

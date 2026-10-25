@@ -5,7 +5,7 @@
  * 環境（規格 11.2）：
  *   正式   andelni           ← main 分支（Workers Builds）
  *   staging andelni-staging  ← dev 分支；建置時設 CLOUDFLARE_ENV=staging
- * D1、rate limit 等 binding 不會繼承，staging 要各寫一份。
+ * D1、R2、rate limit 等 binding 不會繼承，staging 要各寫一份。
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -24,6 +24,8 @@
       "migrations_dir": "migrations",
     },
   ],
+  // 商品照片（規格 5.2）；網址 /img/<key>，由 workers/app.ts 讀出
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "andelni-images" }],
   // 後台登入頻率限制：同一 IP 每分鐘 5 次（workers/auth/admin.ts）
   "ratelimits": [
     {
@@ -42,6 +44,9 @@
           "database_id": "ea62acdc-3f03-4119-bce0-5e3be7ad6925",
           "migrations_dir": "migrations",
         },
+      ],
+      "r2_buckets": [
+        { "binding": "IMAGES", "bucket_name": "andelni-images-staging" },
       ],
       "ratelimits": [
         {

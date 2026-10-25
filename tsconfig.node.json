@@ -3,6 +3,7 @@
   "include": [
     "vite.config.ts",
     "workers/auth/**/*.ts",
+    "workers/api/admin-input*.ts",
     "scripts/**/*.ts",
     "app/lib/catalog.ts"
   ],

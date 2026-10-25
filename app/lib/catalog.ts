@@ -489,7 +489,7 @@ export const productNo = (p: Pick<Product, 'code'>) => p.code.slice(2)
 
 /** 商品網址：/products/an0014-goyard-saint-sulpice-card-holder */
 export const productPath = (p: Pick<Product, 'code' | 'slug'>) =>
-  `/products/${p.code.toLowerCase()}-${p.slug}`
+  `/products/${p.code.toLowerCase()}${p.slug ? `-${p.slug}` : ''}`
 
 /**
  * 從網址片段取商品編號：開頭的編號為準（後面的描述打錯也找得到）。

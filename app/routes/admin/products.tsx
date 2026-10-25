@@ -13,6 +13,7 @@ import {
   SearchField,
 } from '~/components/admin/parts'
 import { categoryName } from '~/lib/catalog'
+import { imageUrl } from '~/lib/images'
 import { type AdminProduct, avgCost, money, stockOf } from '~/lib/mock/admin'
 import { cn } from '~/lib/utils'
 
@@ -80,7 +81,7 @@ export default function Products() {
                   {p.images[0] ? (
                     <img
                       className='block size-[52px] flex-none bg-[#E4E4DE] object-cover'
-                      src={p.images[0]}
+                      src={imageUrl(p.images[0])}
                       alt=''
                     />
                   ) : (
