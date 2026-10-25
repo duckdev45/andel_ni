@@ -11,8 +11,8 @@ import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { Eyebrow, PageTitle } from '~/components/store/typography'
 import { useAuth, type User, useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
-import { getProduct } from '~/lib/catalog'
 import { isActiveOrder, MOCK_ADDRESSES } from '~/lib/mock/account'
+import { useProducts } from '~/lib/products-client'
 import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
@@ -229,7 +229,9 @@ function Overview({ user, wishCount }: { user: User; wishCount: number }) {
 }
 
 function Wish({ ids }: { ids: string[] }) {
-  const products = ids.map(getProduct).filter((p) => p !== undefined)
+  const all = useProducts(ids.length > 0)
+  const products = all?.filter((p) => ids.includes(p.id)) ?? []
+  if (ids.length && !all) return <div className='min-h-60' aria-busy='true' />
   if (!products.length)
     return (
       <p className='m-0 border-t border-line py-8 text-[15px]'>

@@ -2,6 +2,13 @@ import type { loader as rootLoader } from '~/root'
 
 import { useRevalidator, useRouteLoaderData } from 'react-router'
 
+import {
+  cartApi,
+  clearGuestCart,
+  restoreGuestCart,
+  takeGuestCart,
+} from '~/lib/cart'
+
 // 會員登入狀態：伺服器端 session（HttpOnly cookie，app/lib/db/users.server.ts），root loader 讀出目前會員。
 // 登入、登出等動作呼叫 /api/auth/*（workers/api/auth.ts），完成後重新讀取 root loader。
 
@@ -31,18 +38,33 @@ async function call(path: string, method: string, body: unknown = {}) {
   throw new Error(data?.error ?? `發生錯誤（${res.status}），請稍後再試`)
 }
 
+/** 登入後把瀏覽器購物車合併進會員購物車（規格 4）；失敗就放回瀏覽器，下次登入再合併 */
+async function mergeGuestCart() {
+  const lines = takeGuestCart()
+  if (!lines.length) return
+  await cartApi('/merge', 'POST', { lines }).catch(() =>
+    restoreGuestCart(lines)
+  )
+}
+
 export function useAuth() {
   const { revalidate } = useRevalidator()
-  const run = async (path: string, method: string, body?: unknown) => {
+  const run = async (
+    path: string,
+    method: string,
+    body?: unknown,
+    after?: () => unknown
+  ) => {
     await call(path, method, body)
+    await after?.()
     await revalidate()
   }
   return {
     login: (email: string, password: string) =>
-      run('/login', 'POST', { email, password }),
+      run('/login', 'POST', { email, password }, mergeGuestCart),
     register: (u: Omit<User, 'emailVerified'> & { password: string }) =>
-      run('/register', 'POST', u),
-    logout: () => run('/logout', 'POST'),
+      run('/register', 'POST', u, mergeGuestCart),
+    logout: () => run('/logout', 'POST', undefined, clearGuestCart),
     updateUser: (patch: Pick<User, 'name' | 'phone'>) =>
       run('/me', 'PATCH', patch),
     changePassword: (current: string, next: string) =>

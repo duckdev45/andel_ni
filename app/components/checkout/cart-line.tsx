@@ -2,8 +2,9 @@ import { Minus, Plus } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { type CartItem, useCart } from '~/lib/cart'
-import { formatPrice, getProduct, productNo, productPath } from '~/lib/catalog'
+import { formatPrice, productNo, productPath } from '~/lib/catalog'
 import { isCustomLine, lineKind, maxQty, optionText } from '~/lib/mock/checkout'
+import { useProducts } from '~/lib/products-client'
 import { cn } from '~/lib/utils'
 
 export function CartLine({ item }: { item: CartItem }) {
@@ -98,7 +99,7 @@ export function CartLine({ item }: { item: CartItem }) {
 /** 「一起帶走」加購：有規格的商品帶第一個有庫存的規格 */
 export function AddonItem({ productId }: { productId: string }) {
   const { add } = useCart()
-  const p = getProduct(productId)
+  const p = useProducts()?.find((x) => x.id === productId)
   if (!p) return null
   const variant = p.variants
     ? (p.variants.options.find((o) => o.stock > 0) ?? p.variants.options[0])

@@ -27,9 +27,9 @@ import { cn } from '~/lib/utils'
 export const meta: Route.MetaFunction = () => privateMeta('購物車')
 
 export default function CartPage() {
-  const hydrated = useHydrated()
   const user = useUser()
-  const { items, count, subtotal } = useCart()
+  const { items, count, ready, subtotal } = useCart()
+  const hydrated = useHydrated() && ready
 
   const free = subtotal >= FREE_SHIPPING_THRESHOLD
   const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)

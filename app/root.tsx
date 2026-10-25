@@ -15,16 +15,23 @@ import {
 import { Toaster } from '~/components/ui/sonner'
 import { CartProvider } from '~/lib/cart'
 import { dbFrom } from '~/lib/context'
+import { getCartLines } from '~/lib/db/cart.server'
 import { getSessionUser } from '~/lib/db/users.server'
 import { siteOrigin } from '~/lib/seo'
 
-// 正式網址給各路由的 canonical／OG 用；目前登入的會員給 useUser()
+// 正式網址給各路由的 canonical／OG 用；目前登入的會員給 useUser()，會員購物車給 CartProvider
 export async function loader({ context, request }: Route.LoaderArgs) {
-  const session = await getSessionUser(dbFrom(context), request)
-  return { origin: siteOrigin(request), user: session?.user ?? null }
+  const db = dbFrom(context)
+  const session = await getSessionUser(db, request)
+  return {
+    origin: siteOrigin(request),
+    user: session?.user ?? null,
+    // 會員購物車；未登入是 null（購物車在瀏覽器）
+    cart: session ? await getCartLines(db, session.id) : null,
+  }
 }
 
-// 換頁不必重抓；登入、登出後 useAuth() 會呼叫 revalidate（同一網址）重新讀取
+// 換頁不必重抓；登入、登出後 useAuth() 會呼叫 revalidate（同一網址）重新讀取（購物車也跟著更新）
 export const shouldRevalidate: ShouldRevalidateFunction = ({
   currentUrl,
   defaultShouldRevalidate,
