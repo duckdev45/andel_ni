@@ -201,6 +201,8 @@ export type AdminOrder = {
   tracking: string
   /** 客人備註 */
   note: string
+  /** 取消、退回的原因（含取消後才收到付款的提醒） */
+  reason: null | string
   /** 此單包材費，未填用設定值 */
   pack?: number
 }

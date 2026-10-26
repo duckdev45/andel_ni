@@ -18,7 +18,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 /** 無規格商品的庫存／到貨提示；有規格的看規格格子 */
 function availability(p: Product) {
   if (isCustomOrder(p)) return { text: '可客訂・約 [X] 週到貨', low: false }
-  if (isSoldOut(p)) return { text: '已售出', low: false }
+  if (isSoldOut(p)) return { text: '已售完', low: false }
   if (p.variants) return null
   if (p.stock <= 3) return { text: `現貨・剩 ${p.stock} 件`, low: true }
   return { text: '現貨', low: false }

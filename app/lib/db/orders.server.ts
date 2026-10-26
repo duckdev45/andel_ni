@@ -22,7 +22,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   returned: '退回',
 }
 
-const PAY_DB: Record<PayId, string> = {
+export const PAY_DB: Record<PayId, string> = {
   card: 'credit',
   apple: 'apple_pay',
   atm: 'atm',
@@ -33,21 +33,16 @@ const SHIP_DB: Record<ShipId, string> = {
   family: 'family',
   home: 'tcat',
 }
-const fromDb = <K extends string>(map: Record<K, string>, v: string) =>
+export const fromDb = <K extends string>(map: Record<K, string>, v: string) =>
   (Object.keys(map) as K[]).find((k) => map[k] === v)!
 
 /**
- * 未付款訂單保留庫存的時間（規格 6.2）。
- * 🟡 ATM 72 小時（付款頁寫 3 天內轉帳）；信用卡等在綠界頁面當下付款，2 小時沒付就放回庫存。
+ * 未付款訂單先保留庫存 2 小時（規格 6.2）；之後依付款進度延長（app/lib/db/payments.server.ts）：
+ * 每次前往付款至少再 1 小時、ATM 取號後到繳費期限、無卡分期送出申請後 7 天。
  */
-const HOLD_HOURS: Record<PayId, number> = {
-  atm: 72,
-  card: 2,
-  apple: 2,
-  bnpl: 2,
-}
+const HOLD_HOURS = 2
 
-const taipei = (iso: string) =>
+export const taipei = (iso: string) =>
   new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString()
 
 /** 訂單編號：台灣日期 YYMMDD＋4 位亂數，例 2610254821（不用 AN 開頭，避免和商品編號混淆） */
@@ -84,7 +79,7 @@ export async function placeOrder(
   priced: { fee: number; items: PricedItem[]; subtotal: number; total: number }
 ) {
   const now = new Date()
-  const hold = new Date(now.getTime() + HOLD_HOURS[input.pay] * 3600_000)
+  const hold = new Date(now.getTime() + HOLD_HOURS * 3600_000)
   const oid = `(SELECT id FROM orders WHERE order_no = ?1)`
 
   for (let attempt = 0; ; attempt++) {
@@ -184,6 +179,7 @@ type OrderRow = {
   note: string
   created_at: string
   pack_cost: null | number
+  pay_info: null | string
   email: string
   last_note: null | string
 }
@@ -200,6 +196,10 @@ type ItemRow = {
   brand: string
   image: null | string
 }
+
+/** 綠界取號結果（orders.pay_info）：ATM 帳號，或無卡分期已送出申請 */
+export type PayInfo =
+  { account: string; bank: string; expire: string } | { bnpl: true }
 
 export type OrderDetail = ReturnType<typeof toDetail>
 
@@ -238,6 +238,11 @@ function toDetail(o: OrderRow, items: ItemRow[]) {
     payBy:
       o.status === 'pending_payment' && o.stock_hold_until
         ? taipei(o.stock_hold_until).slice(0, 16).replace('T', ' ')
+        : null,
+    /** 待付款時的取號結果；沒有就是還能前往綠界付款 */
+    payInfo:
+      o.status === 'pending_payment' && o.pay_info
+        ? (JSON.parse(o.pay_info) as PayInfo)
         : null,
     /** 取消、退回的原因（最後一筆狀態紀錄） */
     reason:
@@ -331,6 +336,7 @@ export async function listAdminOrders(db: D1Database): Promise<AdminOrder[]> {
       status: d.status,
       tracking: d.tracking ?? '',
       note: d.note,
+      reason: d.reason,
       pack: o.pack_cost ?? undefined,
     }
   })

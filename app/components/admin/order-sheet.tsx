@@ -251,8 +251,8 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
             {o.status === 'completed'
               ? '此訂單已完成'
               : o.status === 'cancelled'
-                ? '此訂單已取消，庫存已歸還'
-                : '此訂單已退回，庫存已歸還'}
+                ? (o.reason ?? '此訂單已取消，庫存已歸還')
+                : (o.reason ?? '此訂單已退回，庫存已歸還')}
           </p>
         )}
       </div>

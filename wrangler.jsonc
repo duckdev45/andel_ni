@@ -50,6 +50,8 @@
   "env": {
     "staging": {
       "name": "andelni-staging",
+      // 綠界用公開的測試特店（workers/api/ecpay.ts）；正式站的金鑰用 wrangler secret put 設定
+      "vars": { "ECPAY_MODE": "stage" },
       "routes": [{ "pattern": "staging.andelni.com", "custom_domain": true }],
       "triggers": { "crons": ["*/15 * * * *"] },
       "d1_databases": [

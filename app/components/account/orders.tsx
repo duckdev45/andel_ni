@@ -2,6 +2,7 @@ import type { OrderDetail as Order } from '~/lib/db/orders.server'
 
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import { formatPrice } from '~/lib/catalog'
 import { cn } from '~/lib/utils'
@@ -61,14 +62,20 @@ function Thumb({ order, size }: { order: Order; size: number }) {
   )
 }
 
-/** 待付款（ATM）提醒，含規格 9 的防詐騙說明 */
+/** 待付款提醒（前往付款、ATM 帳號在完成頁），含規格 9 的防詐騙說明 */
 function PayNotice({ order }: { order: Order }) {
   if (!order.payBy) return null
   return (
     <p className='m-0 text-[13px] leading-[1.7]'>
       請於 <span className='font-mono'>{order.payBy}</span>{' '}
       前完成付款，逾時訂單將自動取消。
-      <span className='text-brand'>我們不會打電話要求你操作 ATM。</span>
+      <span className='text-brand'>我們不會打電話要求你操作 ATM。</span>{' '}
+      <Link
+        className='border-b border-line font-medium'
+        to={`/checkout/done?order=${order.no}`}
+      >
+        {order.payInfo ? '查看付款資訊' : '前往付款'}
+      </Link>
     </p>
   )
 }

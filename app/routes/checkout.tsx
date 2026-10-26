@@ -1,7 +1,7 @@
 import type { Route } from './+types/checkout'
 
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 
 import { LoginForm } from '~/components/account/login-form'
 import { CheckoutForm } from '~/components/checkout/checkout-form'
@@ -21,7 +21,6 @@ export default function CheckoutPage() {
   const hydrated = useHydrated()
   const user = useUser()
   const { clear, items, ready: cartReady } = useCart()
-  const navigate = useNavigate()
   useEffect(refreshProducts, [])
   // 送出後購物車會清空；避免跳轉前閃一下「購物車是空的」
   const [placed, setPlaced] = useState(false)
@@ -87,9 +86,9 @@ export default function CheckoutPage() {
           user={user}
           onPlaced={(no) => {
             setPlaced(true)
-            // 伺服器已清空會員購物車；這裡同步畫面
+            // 伺服器已清空會員購物車；這裡同步畫面，再前往綠界付款頁（整頁跳轉）
             clear()
-            navigate(`/checkout/done?order=${no}`)
+            window.location.assign(`/api/payments/${no}/checkout`)
           }}
         />
       )}

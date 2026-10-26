@@ -58,7 +58,7 @@ const kindText = (p: Product) =>
   isCustomOrder(p)
     ? `${p.kind}・約 [X] 週到貨`
     : isSoldOut(p)
-      ? '已售出'
+      ? '已售完'
       : p.kind
 
 // 規格 5.3：伺服器端輸出 OG 與 JSON-LD
