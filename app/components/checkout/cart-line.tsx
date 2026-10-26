@@ -3,7 +3,13 @@ import { Link } from 'react-router'
 
 import { type CartItem, useCart } from '~/lib/cart'
 import { formatPrice, productNo, productPath } from '~/lib/catalog'
-import { isCustomLine, lineKind, maxQty, optionText } from '~/lib/mock/checkout'
+import {
+  isCustomLine,
+  lineKind,
+  maxQty,
+  optionText,
+  stockIssue,
+} from '~/lib/mock/checkout'
 import { useProducts } from '~/lib/products-client'
 import { cn } from '~/lib/utils'
 
@@ -12,6 +18,7 @@ export function CartLine({ item }: { item: CartItem }) {
   const { product: p, variant, qty } = item
   const max = maxQty(item)
   const atMax = qty >= max
+  const issue = stockIssue(item)
   const href = productPath(p)
 
   return (
@@ -45,8 +52,16 @@ export function CartLine({ item }: { item: CartItem }) {
           </span>
           ・{optionText(item)}・單價 {formatPrice(p.price)}
         </span>
-        {atMax && (
-          <span className='text-xs text-brand'>已達可購買上限（{max} 件）</span>
+        {issue ? (
+          <span className='text-[13px] font-medium text-brand' role='alert'>
+            {issue}
+          </span>
+        ) : (
+          atMax && (
+            <span className='text-xs text-brand'>
+              已達可購買上限（{max} 件）
+            </span>
+          )
         )}
       </div>
       <div className='flex shrink-0 items-center gap-4'>

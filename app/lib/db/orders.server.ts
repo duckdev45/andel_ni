@@ -64,7 +64,7 @@ export async function variantRows(db: D1Database, productIds: number[]) {
        FROM product_variants v
        JOIN products p ON p.id = v.product_id
        JOIN brands b ON b.id = p.brand_id
-       WHERE v.product_id IN (SELECT value FROM json_each(?1))`
+       WHERE v.product_id IN (SELECT value FROM json_each(?1)) AND v.active = 1`
     )
     .bind(JSON.stringify(productIds))
     .all<VariantRow>()

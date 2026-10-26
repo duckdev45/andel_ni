@@ -64,7 +64,7 @@ export async function loadAdmin(db: D1Database) {
     ),
     db.prepare(
       `SELECT product_id, option_label, sku, stock FROM product_variants
-       ORDER BY product_id, sort`
+       WHERE active = 1 ORDER BY product_id, sort`
     ),
     db.prepare(
       `SELECT product_id, r2_key FROM product_images ORDER BY product_id, sort`

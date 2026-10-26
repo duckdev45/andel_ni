@@ -133,6 +133,24 @@ export function maxQty(item: Pick<CartItem, 'product' | 'variant'>) {
     : optionStock(item.product, item.variant)
 }
 
+/**
+ * 不能結帳的原因：規格已停用、現貨庫存不足。沒問題回 null。
+ * 伺服器下單時會再檢查一次（workers/api/order-input.ts priceOrder），這裡是讓客人先在購物車處理。
+ */
+export function stockIssue(
+  item: Pick<CartItem, 'product' | 'qty' | 'variant'>
+) {
+  const { product: p, variant, qty } = item
+  if (p.variants && !p.variants.options.some((o) => o.label === variant))
+    return '此規格已下架，請先移除'
+  if (lineKind(item) !== '現貨') return null
+  const stock = optionStock(p, variant)
+  if (qty <= stock) return null
+  return stock > 0
+    ? `庫存不足，只剩 ${stock} 件，請減少數量或先移除`
+    : '庫存不足，請先移除'
+}
+
 export const optionText = (item: Pick<CartItem, 'product' | 'variant'>) =>
   item.variant && item.product.variants
     ? `${item.product.variants.name}：${item.variant}`

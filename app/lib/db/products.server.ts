@@ -84,7 +84,8 @@ export async function listProducts(db: D1Database): Promise<Product[]> {
     db.prepare(
       `SELECT v.product_id, v.option_label, v.sku, v.stock, v.swatch
        FROM product_variants v JOIN products p ON p.id = v.product_id
-       WHERE p.status = 'active' ORDER BY v.product_id, v.sort`
+       WHERE p.status = 'active' AND v.active = 1
+       ORDER BY v.product_id, v.sort`
     ),
   ])
   const vs = variants.results as VariantRow[]
@@ -102,7 +103,7 @@ export async function getProductByCode(
       .prepare(
         `SELECT v.product_id, v.option_label, v.sku, v.stock, v.swatch
          FROM product_variants v JOIN products p ON p.id = v.product_id
-         WHERE p.code = ?1 ORDER BY v.sort`
+         WHERE p.code = ?1 AND v.active = 1 ORDER BY v.sort`
       )
       .bind(code),
   ])

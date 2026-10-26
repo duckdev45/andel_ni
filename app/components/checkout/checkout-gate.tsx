@@ -49,7 +49,7 @@ export function VerifyNotice() {
  * 「前往結帳」按鈕：未登入 → 登入視窗；未驗證 → 驗證提示；否則前往 /checkout。
  * 取代設計稿的「會員登入」步驟（LINE / Google / 免密碼不做，規格 D7）。
  */
-export function CheckoutButton() {
+export function CheckoutButton({ disabled }: { disabled?: boolean }) {
   const user = useUser()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -59,6 +59,7 @@ export function CheckoutButton() {
       <Button
         type='button'
         className='min-h-14 justify-between px-5 text-base'
+        disabled={disabled}
         size='lg'
         onClick={() =>
           user?.emailVerified ? navigate('/checkout') : setOpen(true)

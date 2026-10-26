@@ -95,10 +95,18 @@ function saveStatements(
              WHERE code = ?1`
           )
           .bind(code, ...fields),
-    // ponytail: 已有訂單的規格刪不掉（order_items 外鍵），會整批失敗；接訂單後改成停用規格
+    // 移除的規格：沒被訂單、進貨用過就刪；用過的（外鍵擋刪除）改成停用，保留歷史紀錄
     db
       .prepare(
         `DELETE FROM product_variants WHERE product_id = ${pid}
+           AND sku NOT IN (SELECT value FROM json_each(?2))
+           AND id NOT IN (SELECT variant_id FROM order_items)
+           AND id NOT IN (SELECT variant_id FROM purchases)`
+      )
+      .bind(code, JSON.stringify(skus)),
+    db
+      .prepare(
+        `UPDATE product_variants SET active = 0 WHERE product_id = ${pid}
            AND sku NOT IN (SELECT value FROM json_each(?2))`
       )
       .bind(code, JSON.stringify(skus)),
@@ -108,7 +116,7 @@ function saveStatements(
           `INSERT INTO product_variants (product_id, option_label, sku, stock, sort)
            VALUES (${pid}, ?2, ?3, ?4, ?5)
            ON CONFLICT (sku) DO UPDATE SET option_label = excluded.option_label,
-             stock = excluded.stock, sort = excluded.sort`
+             stock = excluded.stock, sort = excluded.sort, active = 1`
         )
         .bind(code, o.label, skus[i], o.stock, i)
     ),
@@ -228,7 +236,8 @@ admin.post('/purchases', async (c) => {
   if ('error' in r) return c.json(r, 400)
   const p = r.value
   const variant = await c.env.DB.prepare(
-    `SELECT id FROM product_variants WHERE product_id = ?1 AND option_label IS ?2`
+    `SELECT id FROM product_variants
+     WHERE product_id = ?1 AND option_label IS ?2 AND active = 1`
   )
     .bind(Number(p.pid.slice(1)), p.opt)
     .first<{ id: number }>()
