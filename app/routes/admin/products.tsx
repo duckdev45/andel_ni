@@ -12,9 +12,9 @@ import {
   ROW_RULE,
   SearchField,
 } from '~/components/admin/parts'
+import { type AdminProduct, avgCost, money, stockOf } from '~/lib/admin'
 import { categoryName } from '~/lib/catalog'
 import { imageUrl } from '~/lib/images'
-import { type AdminProduct, avgCost, money, stockOf } from '~/lib/mock/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '商品管理｜AndelNI' }]

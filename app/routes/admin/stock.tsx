@@ -10,7 +10,7 @@ import {
   ROW_RULE,
   Stepper,
 } from '~/components/admin/parts'
-import { type Sku, skusOf } from '~/lib/mock/admin'
+import { type Sku, skusOf } from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '庫存管理｜AndelNI' }]

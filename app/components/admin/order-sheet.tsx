@@ -23,7 +23,7 @@ import {
   type OrderStatus,
   PAY,
   SHIP,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 import { useAdmin } from './admin-store'
@@ -32,7 +32,8 @@ import { FIELD, NumInput, PANEL } from './parts'
 const ROW = 'flex justify-between gap-3 text-[13px] text-[#2E2E2A]'
 
 export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
-  const { purchases, settings, setOrderPack, setOrderStatus } = useAdmin()
+  const { purchases, settings, saveOrderPack, setOrderPack, setOrderStatus } =
+    useAdmin()
   const [track, setTrack] = useState('')
   const [trackErr, setTrackErr] = useState(false)
   const l = orderLedger(o, purchases, settings)
@@ -69,13 +70,17 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
           <div className={cn(PANEL, 'flex flex-col gap-1 p-3 text-[13px]')}>
             <span className='text-xs text-muted-foreground'>付款</span>
             <span>{PAY[o.pay]}</span>
-            {o.atm && (
-              <span className='text-xs leading-normal text-muted-foreground'>
-                {o.atm.bank}｜{o.atm.account}｜期限 {o.atm.due}
-              </span>
-            )}
           </div>
         </div>
+
+        {o.note && (
+          <p className={cn(PANEL, 'p-3 text-[13px] whitespace-pre-line')}>
+            <span className='block text-xs text-muted-foreground'>
+              客人備註
+            </span>
+            {o.note}
+          </p>
+        )}
 
         <div className='flex flex-col'>
           <ul>
@@ -87,7 +92,11 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
                 <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                   <span>{i.name}</span>
                   <span className='text-xs text-muted-foreground'>
-                    {[i.opt, `${money(i.price)} × ${i.qty}`]
+                    {[
+                      i.kind !== '現貨' && i.kind,
+                      i.opt,
+                      `${money(i.price)} × ${i.qty}`,
+                    ]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
@@ -120,7 +129,7 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
             <span className='text-xs font-normal text-muted-foreground'>
               {isBooked(o)
                 ? '已入帳'
-                : o.status === 'pending_pay'
+                : o.status === 'pending_payment'
                   ? '收款後計入'
                   : '不計入'}
             </span>
@@ -146,6 +155,7 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
                 id={`pack-${o.id}`}
                 className='h-[34px] w-16'
                 value={o.pack ?? settings.pack}
+                onCommit={() => saveOrderPack(o.id)}
                 onValue={(n) => setOrderPack(o.id, n)}
               />
             </span>
@@ -165,9 +175,9 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
       </div>
 
       <div className='flex flex-none flex-col gap-2.5 border-t border-border bg-[#FBFBF9] px-5 pt-3 pb-[18px]'>
-        {o.status === 'pending_pay' && (
+        {o.status === 'pending_payment' && (
           <>
-            <SheetAction onClick={() => go('to_ship', '已確認收款')}>
+            <SheetAction onClick={() => go('pending_shipment', '已確認收款')}>
               確認已收款
             </SheetAction>
             <ConfirmButton
@@ -180,7 +190,7 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
             </ConfirmButton>
           </>
         )}
-        {o.status === 'to_ship' && (
+        {o.status === 'pending_shipment' && (
           <>
             <label className='sr-only' htmlFor={`track-${o.id}`}>
               物流單號
@@ -221,7 +231,7 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
         )}
         {o.status === 'shipped' && (
           <>
-            <SheetAction onClick={() => go('done', '訂單已完成')}>
+            <SheetAction onClick={() => go('completed', '訂單已完成')}>
               標記為已完成
             </SheetAction>
             <ConfirmButton
@@ -234,11 +244,11 @@ export function OrderSheetBody({ order: o }: { order: AdminOrder }) {
             </ConfirmButton>
           </>
         )}
-        {(o.status === 'done' ||
+        {(o.status === 'completed' ||
           o.status === 'cancelled' ||
           o.status === 'returned') && (
           <p className='py-1.5 text-center text-[13px] text-muted-foreground'>
-            {o.status === 'done'
+            {o.status === 'completed'
               ? '此訂單已完成'
               : o.status === 'cancelled'
                 ? '此訂單已取消，庫存已歸還'

@@ -1,7 +1,14 @@
 import type { CategoryId, ProductKind } from '~/lib/catalog'
-import type { AdminProduct } from '~/lib/mock/admin'
 
-// 後台商品讀取：含下架商品、全部照片；寫入在 workers/api/admin.ts。
+import {
+  type AdminProduct,
+  type Currency,
+  LEDGER_DEFAULTS,
+  type LedgerSettings,
+  type Purchase,
+} from '~/lib/admin'
+
+// 後台讀取：商品（含下架、全部照片）、進貨、設定；寫入在 workers/api/admin.ts。
 
 type Row = {
   id: number
@@ -26,15 +33,27 @@ type VariantRow = {
 
 type ImageRow = { product_id: number; r2_key: string }
 
-/** 與前台 Product.id 相同格式（p01），記帳簿的假進貨紀錄靠它對應 */
+/** 與前台 Product.id 相同格式（p01）；進貨、訂單明細靠它對應商品 */
 export const adminId = (id: number) => `p${String(id).padStart(2, '0')}`
 
 export const LOW_STOCK_KEY = 'low_stock_at'
+export const LEDGER_KEY = 'ledger'
 
-export async function listAdminProducts(
-  db: D1Database
-): Promise<{ lowAt: null | number; products: AdminProduct[] }> {
-  const [products, variants, images, low] = await db.batch([
+type PurchaseRow = {
+  id: number
+  purchased_on: string
+  product_id: number
+  option_label: null | string
+  qty: number
+  currency: Currency
+  foreign_price: number
+  fx_rate: number
+  card_fee_rate: number
+  note: string
+}
+
+export async function loadAdmin(db: D1Database) {
+  const [products, variants, images, settings, purchases] = await db.batch([
     db.prepare(
       `SELECT p.id, p.code, p.name, b.name AS brand, c.slug AS category,
               p.price, p.type, p.status, p.is_new, p.description, p.option_name
@@ -50,14 +69,45 @@ export async function listAdminProducts(
     db.prepare(
       `SELECT product_id, r2_key FROM product_images ORDER BY product_id, sort`
     ),
-    db.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(LOW_STOCK_KEY),
+    db
+      .prepare(`SELECT key, value FROM settings WHERE key IN (?1, ?2)`)
+      .bind(LOW_STOCK_KEY, LEDGER_KEY),
+    db.prepare(
+      `SELECT pu.id, pu.purchased_on, v.product_id, v.option_label, pu.qty,
+              pu.currency, pu.foreign_price, pu.fx_rate, pu.card_fee_rate, pu.note
+       FROM purchases pu JOIN product_variants v ON v.id = pu.variant_id
+       ORDER BY pu.purchased_on DESC, pu.id DESC`
+    ),
   ])
   const vs = variants.results as VariantRow[]
   const is = images.results as ImageRow[]
-  const lowRow = (low.results as { value: string }[])[0]
+  const st = new Map(
+    (settings.results as { key: string; value: string }[]).map((r) => [
+      r.key,
+      r.value,
+    ])
+  )
+  const lowAt = st.get(LOW_STOCK_KEY)
 
   return {
-    lowAt: lowRow ? Number(lowRow.value) : null,
+    lowAt: lowAt ? Number(lowAt) : null,
+    // 預設值墊底：之後新增的設定項目也有值
+    settings: {
+      ...LEDGER_DEFAULTS,
+      ...JSON.parse(st.get(LEDGER_KEY) ?? '{}'),
+    } as LedgerSettings,
+    purchases: (purchases.results as PurchaseRow[]).map((r): Purchase => ({
+      id: `PO${String(r.id).padStart(3, '0')}`,
+      date: r.purchased_on,
+      pid: adminId(r.product_id),
+      opt: r.option_label,
+      qty: r.qty,
+      cur: r.currency,
+      unit: r.foreign_price,
+      rate: r.fx_rate,
+      fx: r.card_fee_rate,
+      note: r.note,
+    })),
     products: (products.results as Row[]).map((r): AdminProduct => {
       const mine = vs.filter((v) => v.product_id === r.id)
       const single = mine.length === 1 && mine[0].option_label == null

@@ -4,6 +4,7 @@
     "vite.config.ts",
     "workers/auth/**/*.ts",
     "workers/api/admin-input*.ts",
+    "workers/api/order-input*.ts",
     "scripts/**/*.ts",
     "app/lib/catalog.ts"
   ],

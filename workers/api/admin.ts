@@ -1,9 +1,18 @@
 import { Hono } from 'hono'
 
-import { adminId, LOW_STOCK_KEY } from '../../app/lib/db/admin.server'
+import { purchaseCalc } from '../../app/lib/admin'
+import { type OrderStatus, STATUS } from '../../app/lib/admin'
+import {
+  adminId,
+  LEDGER_KEY,
+  LOW_STOCK_KEY,
+} from '../../app/lib/db/admin.server'
+import { changeOrderStatus } from '../../app/lib/db/orders.server'
 import {
   assignSkus,
+  parseLedgerSettings,
   parseProductInput,
+  parsePurchaseInput,
   type ProductInput,
   skuPrefix,
 } from './admin-input'
@@ -213,6 +222,56 @@ admin.post('/stock', async (c) => {
   return row ? c.json(row) : c.json({ error: '找不到 SKU' }, 404)
 })
 
+/** 記一筆進貨（台幣成本伺服器重算）；toStock 時同一個交易加進庫存 */
+admin.post('/purchases', async (c) => {
+  const r = parsePurchaseInput(await c.req.json().catch(() => null))
+  if ('error' in r) return c.json(r, 400)
+  const p = r.value
+  const variant = await c.env.DB.prepare(
+    `SELECT id FROM product_variants WHERE product_id = ?1 AND option_label IS ?2`
+  )
+    .bind(Number(p.pid.slice(1)), p.opt)
+    .first<{ id: number }>()
+  if (!variant) return c.json({ error: '找不到商品規格' }, 404)
+  const [row] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO purchases (variant_id, qty, foreign_price, currency, fx_rate,
+         card_fee_rate, twd_cost, purchased_on, note)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING id`
+    ).bind(
+      variant.id,
+      p.qty,
+      p.unit,
+      p.cur,
+      p.rate,
+      p.fx,
+      purchaseCalc(p).total,
+      p.date,
+      p.note
+    ),
+    ...(p.toStock
+      ? [
+          c.env.DB.prepare(
+            `UPDATE product_variants SET stock = stock + ?2 WHERE id = ?1`
+          ).bind(variant.id, p.qty),
+        ]
+      : []),
+  ])
+  return c.json({ id: (row.results[0] as { id: number }).id }, 201)
+})
+
+admin.put('/settings/ledger', async (c) => {
+  const value = parseLedgerSettings(await c.req.json().catch(() => null))
+  if (!value) return c.json({ error: '設定值不正確' }, 400)
+  await c.env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES (?1, ?2)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+  )
+    .bind(LEDGER_KEY, JSON.stringify(value))
+    .run()
+  return c.body(null, 204)
+})
+
 admin.put('/settings/low-stock', async (c) => {
   const body = (await c.req.json().catch(() => null)) as {
     value?: unknown
@@ -231,6 +290,51 @@ admin.put('/settings/low-stock', async (c) => {
     .bind(LOW_STOCK_KEY, String(value))
     .run()
   return c.body(null, 204)
+})
+
+/** 改訂單狀態（依規格 6.1 流程）；出貨要附物流單號 */
+admin.patch('/orders/:no', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    status?: unknown
+    tracking?: unknown
+  } | null
+  const to = body?.status as OrderStatus
+  if (typeof to !== 'string' || !(to in STATUS))
+    return c.json({ error: 'status 不正確' }, 400)
+  const tracking =
+    typeof body?.tracking === 'string' ? body.tracking.trim() : ''
+  if (to === 'shipped' && (!tracking || tracking.length > 50))
+    return c.json({ error: '請輸入物流單號' }, 400)
+  const r = await changeOrderStatus(
+    c.env.DB,
+    c.req.param('no'),
+    to,
+    to === 'shipped' ? tracking : null
+  )
+  if (r === 'not_found') return c.json({ error: '找不到訂單' }, 404)
+  if (r !== 'ok')
+    return c.json({ error: '訂單狀態已變更，請重新整理後再試' }, 409)
+  return c.body(null, 204)
+})
+
+/** 此單包材費（記帳簿） */
+admin.put('/orders/:no/pack', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    value?: unknown
+  } | null
+  const value = body?.value
+  if (
+    !Number.isInteger(value) ||
+    (value as number) < 0 ||
+    (value as number) > 1e5
+  )
+    return c.json({ error: 'value 不正確' }, 400)
+  const { meta } = await c.env.DB.prepare(
+    `UPDATE orders SET pack_cost = ?2 WHERE order_no = ?1`
+  )
+    .bind(c.req.param('no'), value)
+    .run()
+  return meta.changes ? c.body(null, 204) : c.json({ error: '找不到訂單' }, 404)
 })
 
 /** 照片上傳：瀏覽器已壓縮成 WebP（Safari 是 JPEG），直接存 R2 */

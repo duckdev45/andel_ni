@@ -123,3 +123,91 @@ export function assignSkus(
       `${prefix}-${String(next++).padStart(2, '0')}`
   )
 }
+
+// ── 進貨、記帳設定 ──────────────────────────────────
+
+const CURRENCIES = ['EUR', 'GBP', 'JPY', 'USD', 'TWD'] as const
+const PAYS = ['card', 'apple', 'atm', 'bnpl'] as const
+const SHIPS = ['711', 'family', 'home'] as const
+const between = (v: unknown, min: number, max: number) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max
+
+export type PurchaseInput = {
+  /** 商品 ID（p01） */
+  pid: string
+  /** 規格；單一規格商品為 null */
+  opt: null | string
+  date: string
+  qty: number
+  cur: (typeof CURRENCIES)[number]
+  unit: number
+  rate: number
+  fx: number
+  note: string
+  /** 同時加進庫存 */
+  toStock: boolean
+}
+
+export function parsePurchaseInput(
+  body: unknown
+): { error: string } | { value: PurchaseInput } {
+  const b = (body ?? {}) as Record<string, unknown>
+  if (typeof b.pid !== 'string' || !/^p\d{1,9}$/.test(b.pid))
+    return { error: '請選擇商品' }
+  if (b.opt !== null && !(typeof b.opt === 'string' && b.opt.length <= 50))
+    return { error: '規格不正確' }
+  if (typeof b.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(b.date))
+    return { error: '日期不正確' }
+  if (!Number.isInteger(b.qty) || !between(b.qty, 1, 1e5))
+    return { error: '請輸入數量' }
+  if (!CURRENCIES.includes(b.cur as PurchaseInput['cur']))
+    return { error: '幣別不正確' }
+  if (!between(b.unit, 0.01, 1e8)) return { error: '請輸入單價' }
+  if (!between(b.rate, 0.0001, 1e4)) return { error: '請輸入匯率' }
+  if (!between(b.fx, 0, 100)) return { error: '手續費不正確' }
+  if (typeof b.note !== 'string' || b.note.length > 200)
+    return { error: '備註最多 200 字' }
+  return {
+    value: {
+      pid: b.pid,
+      opt: b.opt as null | string,
+      date: b.date,
+      qty: b.qty as number,
+      cur: b.cur as PurchaseInput['cur'],
+      unit: b.unit as number,
+      rate: b.rate as number,
+      fx: b.fx as number,
+      note: b.note.trim(),
+      toStock: b.toStock === true,
+    },
+  }
+}
+
+/** 記帳設定：只留認得的欄位，數字都要在合理範圍內；不合法回 null */
+export function parseLedgerSettings(body: unknown) {
+  type Obj = Record<string, unknown>
+  const b = (body ?? {}) as Obj
+  const money = (v: unknown) => between(v, 0, 1e5)
+  const pct = (v: unknown) => between(v, 0, 100)
+  const pick = <K extends string>(
+    keys: readonly K[],
+    src: unknown,
+    ok: (v: unknown) => boolean
+  ) => {
+    const o = (src ?? {}) as Obj
+    return keys.every((k) => ok(o[k]))
+      ? (Object.fromEntries(keys.map((k) => [k, o[k]])) as Record<K, number>)
+      : null
+  }
+  const fees = (b.payFee ?? {}) as Record<string, Obj | undefined>
+  const payFee = PAYS.every((k) => pct(fees[k]?.pct) && money(fees[k]?.fixed))
+    ? Object.fromEntries(
+        PAYS.map((k) => [k, { pct: fees[k]!.pct, fixed: fees[k]!.fixed }])
+      )
+    : null
+  const shipCost = pick(SHIPS, b.shipCost, money)
+  const rates = pick(CURRENCIES, b.rates, (v) => between(v, 0.0001, 1e4))
+  if (!payFee || !shipCost || !rates || !money(b.pack) || !pct(b.cardFx))
+    return null
+  return { payFee, pack: b.pack, shipCost, cardFx: b.cardFx, rates }
+}

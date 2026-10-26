@@ -1,45 +1,50 @@
-// ponytail: 後台假資料（訂單、進貨、記帳設定）與計算公式（搬自 Admin.dc.html 與其資料檔）；商品已改接 D1。
-// 假訂單的商品名稱沿用 ~/lib/catalog。
+// 後台型別與計算公式（搬自 Admin.dc.html）。資料都在 D1：讀 app/lib/db/admin.server.ts，寫 workers/api/admin.ts。
 
-import { type CategoryId, type ProductKind, PRODUCTS } from '~/lib/catalog'
+import type { CategoryId, ProductKind } from '~/lib/catalog'
 
-/** 示範資料的「今天」 */
-export const TODAY = '2026-10-16'
-export const TODAY_LABEL = '2026 年 10 月 16 日 星期五'
-export const THIS_MONTH = '2026-10'
+/** 台灣時間的今天 YYYY-MM-DD；往前 n 天 */
+export const taipeiDate = (daysAgo = 0) =>
+  new Date(Date.now() + (8 - daysAgo * 24) * 3600_000)
+    .toISOString()
+    .slice(0, 10)
 
 // ── 訂單狀態（規格 6.1） ──────────────────────────────
 
 export type OrderStatus =
-  'cancelled' | 'done' | 'pending_pay' | 'returned' | 'shipped' | 'to_ship'
+  | 'cancelled'
+  | 'completed'
+  | 'pending_payment'
+  | 'returned'
+  | 'shipped'
+  | 'pending_shipment'
 
 export const STATUS: Record<
   OrderStatus,
   { bg: string; fg: string; label: string }
 > = {
-  pending_pay: { label: '待付款', fg: '#7a4a0c', bg: '#f3e6cf' },
-  to_ship: { label: '待出貨', fg: '#7a1618', bg: '#f1e1df' },
+  pending_payment: { label: '待付款', fg: '#7a4a0c', bg: '#f3e6cf' },
+  pending_shipment: { label: '待出貨', fg: '#7a1618', bg: '#f1e1df' },
   shipped: { label: '已出貨', fg: '#3f5640', bg: '#dfe6dc' },
-  done: { label: '已完成', fg: '#4a423c', bg: '#e8e3dc' },
+  completed: { label: '已完成', fg: '#4a423c', bg: '#e8e3dc' },
   cancelled: { label: '已取消', fg: '#6f655e', bg: '#efece8' },
   returned: { label: '退回', fg: '#55554f', bg: '#e4e4de' },
 }
 
 export const STATUS_ORDER: OrderStatus[] = [
-  'pending_pay',
-  'to_ship',
+  'pending_payment',
+  'pending_shipment',
   'shipped',
-  'done',
+  'completed',
   'cancelled',
   'returned',
 ]
 
 /** 只能依此表轉換：待付款 → 待出貨 → 已出貨 → 已完成；待付款 → 已取消；已出貨 → 退回 */
 export const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
-  pending_pay: ['to_ship', 'cancelled'],
-  to_ship: ['shipped'],
-  shipped: ['done', 'returned'],
-  done: [],
+  pending_payment: ['pending_shipment', 'cancelled'],
+  pending_shipment: ['shipped'],
+  shipped: ['completed', 'returned'],
+  completed: [],
   cancelled: [],
   returned: [],
 }
@@ -49,10 +54,10 @@ export const canTransition = (from: OrderStatus, to: OrderStatus) =>
 
 // ── 付款與物流（規格 6.3 / 6.4） ─────────────────────
 
-export type PayMethod = 'applepay' | 'atm' | 'bnpl' | 'card'
+export type PayMethod = 'apple' | 'atm' | 'bnpl' | 'card'
 export const PAY: Record<PayMethod, string> = {
   card: '信用卡',
-  applepay: 'Apple Pay',
+  apple: 'Apple Pay',
   atm: 'ATM 虛擬帳號',
   bnpl: '無卡分期',
 }
@@ -63,12 +68,6 @@ export const SHIP: Record<ShipMethod, string> = {
   family: '全家取貨',
   home: '黑貓宅配',
 }
-const SHIP_FEE: Record<ShipMethod, number> = {
-  '711': 60,
-  family: 60,
-  home: 100,
-}
-const FREE_SHIP_AT = 2000
 
 // ── 幣別與匯率 ──────────────────────────────────────
 
@@ -181,165 +180,30 @@ export type OrderItem = {
   pid: string
   name: string
   opt: null | string
+  /** 代購、客訂要下單後採購 */
+  kind: '代購' | '客訂' | '現貨'
   price: number
   qty: number
 }
 
 export type AdminOrder = {
+  /** 訂單編號 */
   id: string
   date: string
   customer: { email: string; name: string; phone: string }
   ship: { address: string; method: ShipMethod }
   pay: PayMethod
-  atm?: { account: string; bank: string; due: string }
   items: OrderItem[]
   subtotal: number
   shipFee: number
   total: number
   status: OrderStatus
   tracking: string
+  /** 客人備註 */
+  note: string
   /** 此單包材費，未填用設定值 */
   pack?: number
 }
-
-const item = (pid: string, opt: null | string, qty: number): OrderItem => {
-  const p = PRODUCTS.find((x) => x.id === pid)!
-  return { pid, name: p.name, opt, price: p.price, qty }
-}
-
-const order = (
-  id: string,
-  date: string,
-  customer: AdminOrder['customer'],
-  ship: AdminOrder['ship'],
-  pay: PayMethod,
-  items: OrderItem[],
-  status: OrderStatus,
-  tracking = ''
-): AdminOrder => {
-  const subtotal = items.reduce((a, i) => a + i.price * i.qty, 0)
-  const shipFee = subtotal >= FREE_SHIP_AT ? 0 : SHIP_FEE[ship.method]
-  return {
-    id,
-    date,
-    customer,
-    ship,
-    pay,
-    items,
-    subtotal,
-    shipFee,
-    total: subtotal + shipFee,
-    status,
-    tracking,
-  }
-}
-
-const lin = { name: '林語安', phone: '0912345678', email: 'yuan.lin@mail.com' }
-
-export const SEED_ORDERS: AdminOrder[] = [
-  order(
-    'AN1041',
-    '2026-10-16 10:24',
-    { name: '陳柏宇', phone: '0933221144', email: 'bychen@mail.com' },
-    { method: 'home', address: '台北市大安區仁愛路四段 112 號 6 樓' },
-    'card',
-    [item('p13', null, 1)],
-    'to_ship'
-  ),
-  {
-    ...order(
-      'AN1040',
-      '2026-10-16 08:02',
-      { name: '黃思涵', phone: '0955678123', email: 'sihan@mail.com' },
-      { method: '711', address: '7-ELEVEN 信義門市' },
-      'atm',
-      [item('p07', null, 2), item('p01', '霧粉', 1)],
-      'pending_pay'
-    ),
-    atm: {
-      bank: '822 中國信託',
-      account: '9103 1042 2026 1016',
-      due: '2026/10/19 23:59',
-    },
-  },
-  order(
-    'AN1039',
-    '2026-10-15 22:41',
-    lin,
-    { method: 'family', address: '全家 民生店' },
-    'bnpl',
-    [item('p05', null, 1)],
-    'to_ship'
-  ),
-  order(
-    'AN1038',
-    '2026-10-15 14:10',
-    { name: '張凱婷', phone: '0921009876', email: 'kt.chang@mail.com' },
-    { method: 'home', address: '新北市板橋區文化路一段 25 號' },
-    'applepay',
-    [item('p15', null, 1)],
-    'to_ship'
-  ),
-  order(
-    'AN1037',
-    '2026-10-14 19:55',
-    { name: '吳承恩', phone: '0978123456', email: 'ce.wu@mail.com' },
-    { method: 'home', address: '台中市西區公益路 68 號' },
-    'card',
-    [item('p14', '黑色', 1), item('p12', null, 1)],
-    'shipped',
-    '黑貓 9024 5512 0381'
-  ),
-  order(
-    'AN1036',
-    '2026-10-13 11:30',
-    lin,
-    { method: 'home', address: '台北市松山區民生東路三段 51 號 3 樓' },
-    'card',
-    [item('p02', '黑色', 1)],
-    'done',
-    '黑貓 9024 5507 1126'
-  ),
-  order(
-    'AN1035',
-    '2026-10-12 16:18',
-    { name: '李孟哲', phone: '0910556677', email: 'mz.lee@mail.com' },
-    { method: '711', address: '7-ELEVEN 敦化門市' },
-    'bnpl',
-    [item('p06', null, 1)],
-    'done',
-    '7-ELEVEN 交貨便 F8812034'
-  ),
-  order(
-    'AN1034',
-    '2026-10-11 09:47',
-    { name: '周芷若', phone: '0987654321', email: 'zr.chou@mail.com' },
-    { method: 'family', address: '全家 新光店' },
-    'atm',
-    [item('p10', null, 1)],
-    'cancelled'
-  ),
-  order(
-    'AN1033',
-    '2026-10-10 20:05',
-    { name: '許家豪', phone: '0939111222', email: 'jh.hsu@mail.com' },
-    { method: 'home', address: '高雄市苓雅區四維三路 6 號' },
-    'card',
-    [item('p08', null, 1)],
-    'done',
-    '黑貓 9024 5498 3307'
-  ),
-  order(
-    'AN1032',
-    '2026-10-08 13:22',
-    { name: '蔡宜蓁', phone: '0952334455', email: 'yz.tsai@mail.com' },
-    { method: 'family', address: '全家 師大店' },
-    'card',
-    [item('p04', '米白', 1)],
-    'returned',
-    '全家店到店 2203 8812'
-  ),
-]
 
 /** 列表用：第一件商品＋件數 */
 export function orderSummary(o: AdminOrder) {
@@ -356,6 +220,7 @@ export function orderSummary(o: AdminOrder) {
 // ── 進貨 ─────────────────────────────────────────────
 
 export type Purchase = {
+  /** 顯示用編號 PO001 */
   id: string
   date: string
   pid: string
@@ -369,46 +234,6 @@ export type Purchase = {
   fx: number
   note: string
 }
-
-const po = (
-  id: string,
-  date: string,
-  pid: string,
-  qty: number,
-  cur: Currency,
-  unit: number,
-  rate: number,
-  note = ''
-): Purchase => ({
-  id,
-  date,
-  pid,
-  opt: null,
-  qty,
-  cur,
-  unit,
-  rate,
-  fx: 1.5,
-  note,
-})
-
-export const SEED_PURCHASES: Purchase[] = [
-  po('PO113', '2026-10-09', 'p12', 4, 'EUR', 75, 35.4),
-  po('PO112', '2026-10-05', 'p07', 15, 'EUR', 25, 35.3),
-  po('PO111', '2026-10-02', 'p01', 10, 'USD', 38, 32.0, '三款混裝'),
-  po('PO110', '2026-09-30', 'p05', 3, 'EUR', 245, 35.3),
-  po('PO109', '2026-09-28', 'p13', 2, 'EUR', 640, 35.1),
-  po('PO108', '2026-09-28', 'p14', 4, 'EUR', 300, 35.1, '三色'),
-  po('PO107', '2026-09-03', 'p02', 3, 'EUR', 250, 35.0),
-  po('PO106', '2026-08-25', 'p15', 5, 'EUR', 130, 34.9),
-  po('PO105', '2026-08-20', 'p06', 4, 'EUR', 160, 34.9),
-  po('PO104', '2026-07-22', 'p08', 3, 'EUR', 265, 34.8),
-  po('PO103', '2026-07-22', 'p03', 6, 'EUR', 70, 34.8),
-  po('PO102', '2026-07-20', 'p09', 6, 'JPY', 5500, 0.211, '日本購入'),
-  po('PO101', '2026-07-10', 'p10', 5, 'EUR', 32, 34.9),
-  po('PO100', '2026-07-08', 'p11', 4, 'USD', 42, 31.8),
-  po('PO099', '2026-07-01', 'p04', 6, 'EUR', 95, 34.7, '米白・黑色・卡其'),
-]
 
 /** 外幣 × 匯率 → 台幣，再加刷卡手續費 */
 export const purchaseCalc = (r: {
@@ -452,10 +277,11 @@ export type LedgerSettings = {
   rates: Record<Currency, number>
 }
 
-export const SEED_SETTINGS: LedgerSettings = {
+/** 記帳設定的預設值；後台改過就存在 settings 表（LEDGER_KEY） */
+export const LEDGER_DEFAULTS: LedgerSettings = {
   payFee: {
     card: { pct: 2.8, fixed: 0 },
-    applepay: { pct: 2.8, fixed: 0 },
+    apple: { pct: 2.8, fixed: 0 },
     atm: { pct: 1, fixed: 0 },
     bnpl: { pct: 0, fixed: 0 },
   },
@@ -467,7 +293,9 @@ export const SEED_SETTINGS: LedgerSettings = {
 
 /** 已收款且未取消／退回的訂單才入帳 */
 export const isBooked = (o: AdminOrder) =>
-  o.status === 'to_ship' || o.status === 'shipped' || o.status === 'done'
+  o.status === 'pending_shipment' ||
+  o.status === 'shipped' ||
+  o.status === 'completed'
 
 /** 每筆淨利 = 售價 − 成本 − 金流手續費 − 包材費 − 運費 */
 export const orderLedger = (

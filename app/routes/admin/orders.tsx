@@ -20,7 +20,7 @@ import {
   SHIP,
   STATUS,
   STATUS_ORDER,
-} from '~/lib/mock/admin'
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '訂單管理｜AndelNI' }]

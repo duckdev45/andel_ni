@@ -1,91 +1,66 @@
 import type { Route } from './+types/register'
 
 import { useState } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 
 import {
   AuthAside,
   AuthHeading,
   AuthLayout,
-  ResendButton,
   safeRedirect,
   TurnstilePlaceholder,
-  useCooldown,
 } from '~/components/account/auth-layout'
-import {
-  CodeField,
-  Field,
-  isCode,
-  isEmail,
-  isPhone,
-} from '~/components/account/field'
+import { Field, isEmail, isPhone } from '~/components/account/field'
 import { Button } from '~/components/ui/button'
-import {
-  logout,
-  mockRegister,
-  mockVerifyEmail,
-  type User,
-  useUser,
-} from '~/lib/auth'
+import { useAuth, type User, useUser } from '~/lib/auth'
 import { privateMeta } from '~/lib/seo'
 
 export const meta: Route.MetaFunction = () => privateMeta('註冊')
 
-const STEPS = ['填寫會員資料', '輸入 Email 驗證碼，啟用帳號', '完成，開始購物']
+const STEPS = ['填寫會員資料', '完成，開始購物']
 
 /**
- * 規格 3.2：填資料 → 6 位數 Email 驗證碼 → 啟用。
- * 步驟由登入狀態決定：未登入＝填資料；已註冊未驗證＝驗證碼；已驗證＝完成。
+ * 規格 3.2：填資料 → 註冊完成並登入。
+ * ponytail: Email 驗證碼步驟等寄信服務接好再加回來（原型在 git 紀錄）。
  */
 export default function Register() {
   const user = useUser()
-  const navigate = useNavigate()
   const [params] = useSearchParams()
   const from = params.get('redirect')
   const redirect = safeRedirect(from)
-  const wantsVerify = params.get('step') === 'verify'
-  const qs = from ? `&redirect=${encodeURIComponent(redirect)}` : ''
+  const qs = from ? `?redirect=${encodeURIComponent(redirect)}` : ''
+  // 剛註冊完顯示歡迎畫面；已登入的人直接打開 /register 就導回來源頁
+  const [joined, setJoined] = useState(false)
 
-  // 已登入的人直接打開 /register：未驗證帶去驗證碼步驟，已驗證導回來源頁
-  if (user && !wantsVerify)
-    return (
-      <Navigate
-        replace
-        to={user.emailVerified ? redirect : `/register?step=verify${qs}`}
-      />
-    )
-
-  const step = !user ? 0 : user.emailVerified ? 2 : 1
+  if (user && !joined) return <Navigate replace to={redirect} />
 
   return (
     <AuthLayout
-      aside={<AuthAside current={step} items={STEPS} title='註冊流程' />}
+      aside={
+        <AuthAside current={user ? 1 : 0} items={STEPS} title='註冊流程' />
+      }
     >
-      {step === 0 &&
-        (wantsVerify ? (
-          <NeedLogin qs={qs} />
-        ) : (
-          <RegisterForm loginHref={`/login${qs.replace('&', '?')}`} />
-        ))}
-      {step === 1 && (
-        <VerifyStep
-          user={user!}
-          onRestart={() => {
-            logout()
-            navigate(`/register${qs.replace('&', '?')}`, { replace: true })
-          }}
-        />
-      )}
-      {step === 2 && (
-        <Done hasRedirect={!!from} redirect={redirect} user={user!} />
+      {user ? (
+        <Done hasRedirect={!!from} redirect={redirect} user={user} />
+      ) : (
+        <RegisterForm loginHref={`/login${qs}`} onJoined={setJoined} />
       )}
     </AuthLayout>
   )
 }
 
-function RegisterForm({ loginHref }: { loginHref: string }) {
+function RegisterForm({
+  loginHref,
+  onJoined,
+}: {
+  loginHref: string
+  onJoined: (joined: boolean) => void
+}) {
+  const { register } = useAuth()
   const [v, setV] = useState({ email: '', name: '', password: '', phone: '' })
   const [tried, setTried] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   const errors = {
     email: !isEmail(v.email) && '請輸入正確的 Email',
     name: !v.name.trim() && '請填寫姓名',
@@ -102,25 +77,34 @@ function RegisterForm({ loginHref }: { loginHref: string }) {
 
   return (
     <>
-      <AuthHeading large eyebrow='JOIN — STEP 1 / 3' title='註冊會員'>
-        填好資料後，我們會寄 6 位數驗證碼到你的
-        Email。姓名與手機之後結帳會自動帶入。
+      <AuthHeading large eyebrow='JOIN — STEP 1 / 2' title='註冊會員'>
+        姓名與手機之後結帳會自動帶入。
       </AuthHeading>
       <form
         className='grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4'
         noValidate
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
           if (Object.values(errors).some(Boolean)) {
             setTried(true)
             return
           }
-          // 註冊後即為登入狀態（未驗證），頁面會自動進到驗證碼步驟
-          mockRegister({
-            email: v.email.trim(),
-            name: v.name.trim(),
-            phone: v.phone.replace(/[\s-]/g, ''),
-          })
+          setBusy(true)
+          try {
+            // 註冊成功即登入，頁面切到歡迎畫面
+            onJoined(true)
+            await register({
+              email: v.email.trim(),
+              name: v.name.trim(),
+              phone: v.phone.replace(/[\s-]/g, ''),
+              password: v.password,
+            })
+          } catch (err) {
+            onJoined(false)
+            setError(err instanceof Error ? err.message : '註冊失敗')
+          } finally {
+            setBusy(false)
+          }
         }}
       >
         <Field
@@ -166,12 +150,18 @@ function RegisterForm({ loginHref }: { loginHref: string }) {
         </div>
         <div className='col-span-full flex flex-col gap-4'>
           <TurnstilePlaceholder />
+          {error && (
+            <p className='m-0 text-[13px] text-brand' role='alert'>
+              {error}
+            </p>
+          )}
           <Button
             type='submit'
             className='h-14 justify-between text-base'
+            disabled={busy}
             size='lg'
           >
-            註冊並寄送驗證碼 <span aria-hidden='true'>→</span>
+            註冊 <span aria-hidden='true'>→</span>
           </Button>
           <p className='m-0 text-[12.5px] leading-[1.7] text-muted-foreground'>
             註冊即表示你同意會員條款與隱私權政策。
@@ -186,92 +176,6 @@ function RegisterForm({ loginHref }: { loginHref: string }) {
         >
           登入
         </Link>
-      </p>
-    </>
-  )
-}
-
-function VerifyStep({
-  onRestart,
-  user,
-}: {
-  onRestart: () => void
-  user: User
-}) {
-  const [code, setCode] = useState('')
-  const [tried, setTried] = useState(false)
-  const [resent, setResent] = useState(false)
-  const cooldown = useCooldown()
-  const codeErr = tried && !isCode(code) && '請輸入 6 位數字驗證碼'
-
-  return (
-    <>
-      <AuthHeading eyebrow='EMAIL CODE — STEP 2 / 3' title='輸入 Email 驗證碼'>
-        驗證碼已寄到{' '}
-        <span className='font-mono font-medium break-all text-foreground'>
-          {user.email}
-        </span>
-        ，10 分鐘內有效。
-      </AuthHeading>
-      <form
-        className='flex flex-col gap-4'
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!isCode(code)) {
-            setTried(true)
-            return
-          }
-          mockVerifyEmail()
-        }}
-      >
-        <CodeField
-          id='reg-code'
-          error={codeErr}
-          value={code}
-          onValue={setCode}
-        />
-        <Button
-          type='submit'
-          variant='brand'
-          className='h-14 justify-between text-base'
-          size='lg'
-        >
-          驗證並啟用帳號 <span aria-hidden='true'>→</span>
-        </Button>
-      </form>
-      <div className='flex flex-wrap items-center justify-between gap-3 text-[13.5px] text-muted-foreground'>
-        <ResendButton
-          left={cooldown.left}
-          onResend={() => {
-            cooldown.restart()
-            setResent(true)
-          }}
-        />
-        <button
-          type='button'
-          className='min-h-11 underline underline-offset-4'
-          onClick={onRestart}
-        >
-          Email 填錯了？重新註冊
-        </button>
-      </div>
-      {resent && (
-        <p className='m-0 text-[13px]' role='status'>
-          已重新寄出，舊的驗證碼即失效。
-        </p>
-      )}
-      <div className='flex flex-col gap-2 border border-line bg-[#FBFBF9] px-[18px] py-4 text-[13.5px] leading-[1.7]'>
-        <span className='font-mono text-xs text-brand'>沒收到？</span>
-        <span>
-          請檢查垃圾郵件或促銷郵件匣。驗證前可以先逛逛、加入購物車，但結帳前需要完成驗證。
-        </span>
-        <Link className='self-start underline underline-offset-4' to='/'>
-          稍後再驗證，先去逛逛
-        </Link>
-      </div>
-      <p className='m-0 font-mono text-[11.5px] text-[#8E8E87]'>
-        原型示範：輸入任意 6 位數字即可
       </p>
     </>
   )
@@ -295,7 +199,7 @@ function Done({
         {`${user.name}，\n歡迎加入。`}
       </h1>
       <p className='m-0 text-[15px] leading-[1.8]'>
-        Email 已驗證，帳號已啟用，你已經登入。下次結帳會自動帶入姓名與手機。
+        帳號已建立，你已經登入。下次結帳會自動帶入姓名與手機。
       </p>
       <div className='flex flex-wrap gap-2.5'>
         {hasRedirect && (
@@ -316,33 +220,6 @@ function Done({
         <Link className={`${btn} underline underline-offset-4`} to='/'>
           繼續逛逛
         </Link>
-      </div>
-    </>
-  )
-}
-
-function NeedLogin({ qs }: { qs: string }) {
-  return (
-    <>
-      <AuthHeading eyebrow='EMAIL CODE' title='請先登入'>
-        登入已註冊但尚未驗證的帳號後，就能輸入 Email 驗證碼啟用帳號。
-      </AuthHeading>
-      <div className='flex flex-wrap gap-2.5'>
-        <Button className='h-[52px] gap-6 text-[15px]' asChild size='lg'>
-          <Link
-            to={`/login?redirect=${encodeURIComponent(`/register?step=verify${qs}`)}`}
-          >
-            登入 <span aria-hidden='true'>→</span>
-          </Link>
-        </Button>
-        <Button
-          variant='outline'
-          className='h-[52px] text-[15px]'
-          asChild
-          size='lg'
-        >
-          <Link to={`/register${qs.replace('&', '?')}`}>註冊新帳號</Link>
-        </Button>
       </div>
     </>
   )

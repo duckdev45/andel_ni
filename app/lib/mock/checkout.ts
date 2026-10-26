@@ -8,7 +8,7 @@ import {
   SHIPPING_FEES,
 } from '~/lib/catalog'
 
-// ponytail: 後端未接，訂單只存 sessionStorage 給完成頁讀；之後改成 POST /api/orders 回傳訂單編號。
+// 結帳頁的選項與計算（運費、出貨型態）。ponytail: 超商門市還是假資料，綠界物流（規格 6.4）接上後改成電子地圖。
 
 export type ShipId = '711' | 'family' | 'home'
 export type PayId = 'apple' | 'atm' | 'bnpl' | 'card'
@@ -142,103 +142,3 @@ export const shippingFee = (subtotal: number, ship: ShipId) =>
   subtotal >= FREE_SHIPPING_THRESHOLD
     ? 0
     : (SHIP_OPTIONS.find((o) => o.id === ship)?.fee ?? 0)
-
-export type OrderLine = {
-  productId: string
-  name: string
-  brand: string
-  image: string
-  option: string
-  kind: string
-  /** 客訂／代購 */
-  custom: boolean
-  qty: number
-  price: number
-}
-
-export type MockOrder = {
-  no: string
-  createdAt: string
-  name: string
-  phone: string
-  email: string
-  ship: ShipId
-  /** 超商：門市；宅配：地址 */
-  destination: string
-  pay: PayId
-  note: string
-  lines: OrderLine[]
-  subtotal: number
-  fee: number
-  total: number
-  /** 規格 9：客訂／代購同意不適用 7 天鑑賞期（consent_no_return） */
-  consentNoReturn: boolean
-}
-
-const orderKey = (no: string) => `andelni:order:${no}`
-
-export function createOrder(
-  input: Omit<
-    MockOrder,
-    'createdAt' | 'fee' | 'lines' | 'no' | 'subtotal' | 'total'
-  >,
-  items: CartItem[]
-): MockOrder {
-  const subtotal = items.reduce((n, i) => n + i.qty * i.product.price, 0)
-  const fee = shippingFee(subtotal, input.ship)
-  const order: MockOrder = {
-    ...input,
-    no: `AN${String(Date.now()).slice(-6)}`,
-    createdAt: new Date().toISOString(),
-    lines: items.map((i) => ({
-      productId: i.productId,
-      name: i.product.name,
-      brand: i.product.brand,
-      image: i.product.image,
-      option: optionText(i),
-      kind: lineKind(i),
-      custom: isCustomLine(i),
-      qty: i.qty,
-      price: i.product.price,
-    })),
-    subtotal,
-    fee,
-    total: subtotal + fee,
-  }
-  try {
-    sessionStorage.setItem(orderKey(order.no), JSON.stringify(order))
-  } catch {
-    // 無痕模式：完成頁會顯示找不到訂單，仍可到會員中心查
-  }
-  return order
-}
-
-/** 給 useSyncExternalStore 用：回傳原始字串（穩定），解析交給呼叫端 */
-export function readOrderRaw(no: string) {
-  try {
-    return sessionStorage.getItem(orderKey(no))
-  } catch {
-    return null
-  }
-}
-
-/** ATM 虛擬帳號（假資料）：由訂單編號推出 14 碼帳號，期限 3 天 */
-export function mockAtm(order: MockOrder) {
-  const digits = order.no.replace(/\D/g, '')
-  const account = `91030${digits}`.padEnd(14, '0').slice(0, 14)
-  const deadline = new Date(order.createdAt)
-  deadline.setDate(deadline.getDate() + 3)
-  deadline.setHours(23, 59, 0, 0)
-  return {
-    bank: '822 中國信託',
-    account: account.replace(/(\d{4})(?=\d)/g, '$1 '),
-    deadline: deadline.toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }),
-  }
-}

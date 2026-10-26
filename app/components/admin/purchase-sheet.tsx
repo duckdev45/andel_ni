@@ -20,8 +20,8 @@ import {
   money,
   num,
   purchaseCalc,
-  TODAY,
-} from '~/lib/mock/admin'
+  taipeiDate,
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 import { useAdmin } from './admin-store'
@@ -48,7 +48,7 @@ export function PurchaseSheetBody({
   const { products, settings, addPurchase, closeSheet } = useAdmin()
   const ids = useId()
   const [d, setD] = useState(() => ({
-    date: TODAY,
+    date: taipeiDate(),
     qty: '',
     unit: '',
     note: '',
@@ -80,7 +80,7 @@ export function PurchaseSheetBody({
     if (Object.values(e).some(Boolean)) return
     addPurchase(
       {
-        date: d.date || TODAY,
+        date: d.date || taipeiDate(),
         pid: d.pid,
         opt: d.opt,
         qty: Math.round(num(d.qty)),

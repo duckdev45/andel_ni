@@ -1,6 +1,7 @@
 import { createRequestHandler, RouterContextProvider } from 'react-router'
 
 import { cloudflareContext } from '../app/lib/context'
+import { expireOrders } from '../app/lib/db/orders.server'
 import { ADMIN_CLOSED_HEADER, isIndexableHost } from '../app/lib/seo'
 import { api } from './api'
 import { type AdminEnv, handleAdmin, isAdminPath } from './auth/admin'
@@ -61,5 +62,10 @@ export default {
     // 後台：不讓瀏覽器或 CDN 快取
     if (admin) headers.set('Cache-Control', 'no-store')
     return new Response(response.body, { status: response.status, headers })
+  },
+  // 排程（wrangler.jsonc triggers.crons）：逾時未付款的訂單自動取消、放回庫存
+  async scheduled(_controller, env) {
+    const r = await expireOrders(env.DB)
+    if (r.cancelled) console.log('逾時取消訂單', r)
   },
 } satisfies ExportedHandler<Env>

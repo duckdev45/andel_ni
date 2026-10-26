@@ -18,7 +18,7 @@ export const meta: Route.MetaFunction = () => privateMeta('填寫資料')
 export default function CheckoutPage() {
   const hydrated = useHydrated()
   const user = useUser()
-  const { items, clear } = useCart()
+  const { clear, items, ready: cartReady } = useCart()
   const navigate = useNavigate()
   // 送出後購物車會清空；避免跳轉前閃一下「購物車是空的」
   const [placed, setPlaced] = useState(false)
@@ -39,7 +39,7 @@ export default function CheckoutPage() {
         </Link>
       </div>
 
-      {!hydrated || placed ? (
+      {!hydrated || placed || !cartReady ? (
         <div className='min-h-[320px]' aria-busy='true' />
       ) : !user ? (
         <Panel
@@ -70,10 +70,11 @@ export default function CheckoutPage() {
           key={user.email}
           items={items}
           user={user}
-          onPlaced={(order) => {
+          onPlaced={(no) => {
             setPlaced(true)
+            // 伺服器已清空會員購物車；這裡同步畫面
             clear()
-            navigate(`/checkout/done?order=${order.no}`)
+            navigate(`/checkout/done?order=${no}`)
           }}
         />
       )}

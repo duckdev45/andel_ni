@@ -13,10 +13,8 @@ import {
   percent,
   SHIP,
   skusOf,
-  THIS_MONTH,
-  TODAY,
-  TODAY_LABEL,
-} from '~/lib/mock/admin'
+  taipeiDate,
+} from '~/lib/admin'
 import { cn } from '~/lib/utils'
 
 export const meta: Route.MetaFunction = () => [{ title: '總覽｜AndelNI' }]
@@ -24,12 +22,15 @@ export const meta: Route.MetaFunction = () => [{ title: '總覽｜AndelNI' }]
 export default function Dashboard() {
   const { orders, products, purchases, settings, lowAt, openSheet } = useAdmin()
 
-  const live = orders.filter((o) => o.status !== 'cancelled')
-  const todays = live.filter((o) => o.date.startsWith(TODAY))
-  const toShip = orders.filter((o) => o.status === 'to_ship')
-  const pendPay = orders.filter((o) => o.status === 'pending_pay').length
+  const today = taipeiDate()
+  const live = orders.filter(
+    (o) => o.status !== 'cancelled' && o.status !== 'returned'
+  )
+  const todays = live.filter((o) => o.date.startsWith(today))
+  const toShip = orders.filter((o) => o.status === 'pending_shipment')
+  const pendPay = orders.filter((o) => o.status === 'pending_payment').length
   const month = orders
-    .filter((o) => isBooked(o) && o.date.startsWith(THIS_MONTH))
+    .filter((o) => isBooked(o) && o.date.startsWith(today.slice(0, 7)))
     .map((o) => orderLedger(o, purchases, settings))
   const mNet = month.reduce((a, l) => a + l.net, 0)
   const mSale = month.reduce((a, l) => a + l.sale, 0)
@@ -49,14 +50,14 @@ export default function Dashboard() {
       label: '待出貨',
       value: String(toShip.length),
       sub: '筆訂單',
-      to: '/admin/orders?status=to_ship',
+      to: '/admin/orders?status=pending_shipment',
       tone: toShip.length ? 'text-brand' : '',
     },
     {
       label: '待付款',
       value: String(pendPay),
-      sub: 'ATM 轉帳待確認',
-      to: '/admin/orders?status=pending_pay',
+      sub: '筆訂單',
+      to: '/admin/orders?status=pending_payment',
       tone: '',
     },
     {
@@ -70,13 +71,12 @@ export default function Dashboard() {
 
   // 近 7 日（含今天）營收
   const days = Array.from({ length: 7 }, (_, i) => {
-    const d = 10 + i
-    const key = `${THIS_MONTH}-${String(d).padStart(2, '0')}`
+    const key = taipeiDate(6 - i)
     return {
       key,
-      label: `10/${d}`,
+      label: `${+key.slice(5, 7)}/${+key.slice(8)}`,
       v: live
-        .filter((o) => o.date.startsWith(key) && o.status !== 'returned')
+        .filter((o) => o.date.startsWith(key))
         .reduce((a, o) => a + o.total, 0),
     }
   })
@@ -84,7 +84,12 @@ export default function Dashboard() {
 
   return (
     <>
-      <p className='text-[13px] text-muted-foreground'>{TODAY_LABEL}</p>
+      <p className='text-[13px] text-muted-foreground'>
+        {new Intl.DateTimeFormat('zh-TW', {
+          dateStyle: 'full',
+          timeZone: 'Asia/Taipei',
+        }).format(new Date())}
+      </p>
 
       <div className='grid grid-cols-2 gap-2.5 lg:grid-cols-4'>
         {kpis.map((k) => (
@@ -117,7 +122,7 @@ export default function Dashboard() {
           <PanelHead title='待出貨'>
             <Link
               className='py-1.5 text-[12.5px] text-brand hover:underline'
-              to='/admin/orders?status=to_ship'
+              to='/admin/orders?status=pending_shipment'
             >
               全部訂單 →
             </Link>
@@ -237,7 +242,7 @@ export default function Dashboard() {
                     <span
                       className={cn(
                         'block w-full max-w-7',
-                        x.key === TODAY ? 'bg-brand' : 'bg-border'
+                        x.key === today ? 'bg-brand' : 'bg-border'
                       )}
                       style={{ height: `${Math.max(2, (x.v / max) * 82)}%` }}
                       aria-hidden='true'
