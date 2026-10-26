@@ -3,8 +3,8 @@
  * 前台（React Router SSR）與 API（Hono，/api/*）跑在同一個 Worker（規格 D3）。
  *
  * 環境（規格 11.2）：
- *   正式   andelni           ← main 分支（Workers Builds）
- *   staging andelni-staging  ← dev 分支；建置時設 CLOUDFLARE_ENV=staging
+ *   正式   andelni           ← main 分支（Workers Builds）  andelni.com、www.andelni.com
+ *   staging andelni-staging  ← dev 分支；建置時設 CLOUDFLARE_ENV=staging  staging.andelni.com
  * D1、R2、rate limit 等 binding 不會繼承，staging 要各寫一份。
  */
 {
@@ -16,6 +16,11 @@
     "enabled": true,
   },
   "upload_source_maps": true,
+  // 自訂網域（部署時自動建 DNS 與憑證）；www 由 workers/app.ts 轉到 andelni.com
+  "routes": [
+    { "pattern": "andelni.com", "custom_domain": true },
+    { "pattern": "www.andelni.com", "custom_domain": true },
+  ],
   // 每 15 分鐘：逾時未付款訂單自動取消（app/lib/db/orders.server.ts expireOrders）
   "triggers": { "crons": ["*/15 * * * *"] },
   "d1_databases": [
@@ -26,7 +31,7 @@
       "migrations_dir": "migrations",
     },
   ],
-  // 商品照片（規格 5.2）；網址 /img/<key>，由 workers/app.ts 讀出
+  // 商品照片（規格 5.2）：正式 img.andelni.com、staging img-staging.andelni.com（R2 自訂網域）；本機走 /img/
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "andelni-images" }],
   // 後台登入頻率限制：同一 IP 每分鐘 5 次（workers/auth/admin.ts）
   "ratelimits": [
@@ -45,6 +50,7 @@
   "env": {
     "staging": {
       "name": "andelni-staging",
+      "routes": [{ "pattern": "staging.andelni.com", "custom_domain": true }],
       "triggers": { "crons": ["*/15 * * * *"] },
       "d1_databases": [
         {
