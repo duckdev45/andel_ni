@@ -1,8 +1,7 @@
 import { Link } from 'react-router'
 
 import {
-  BRANDS,
-  CATEGORIES,
+  type Brand,
   formatPrice,
   FREE_SHIPPING_THRESHOLD,
   isCustomOrder,
@@ -11,6 +10,7 @@ import {
   productNo,
   SHIPPING_FEES,
 } from '~/lib/catalog'
+import { useCategories } from '~/lib/categories'
 import { cn } from '~/lib/utils'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -18,7 +18,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 /** 無規格商品的庫存／到貨提示；有規格的看規格格子 */
 function availability(p: Product) {
   if (isCustomOrder(p)) return { text: '可客訂・約 [X] 週到貨', low: false }
-  if (isSoldOut(p)) return { text: '已售出', low: false }
+  if (isSoldOut(p)) return { text: '已售完', low: false }
   if (p.variants) return null
   if (p.stock <= 3) return { text: `現貨・剩 ${p.stock} 件`, low: true }
   return { text: '現貨', low: false }
@@ -26,7 +26,7 @@ function availability(p: Product) {
 
 export function ProductHeading({ product: p }: { product: Product }) {
   const custom = isCustomOrder(p)
-  const cat = CATEGORIES.find((c) => c.id === p.cat)
+  const cat = useCategories().find((c) => c.id === p.cat)
   const note = availability(p)
 
   return (
@@ -80,7 +80,13 @@ export function ProductHeading({ product: p }: { product: Product }) {
 const ROW_DT = 'flex-[0_0_88px] pt-0.5 font-mono text-xs text-muted-foreground'
 
 /** 規格表＋運送付款（規格 6.3／6.4）＋商品說明＋品牌卡 */
-export function ProductSpecs({ product: p }: { product: Product }) {
+export function ProductSpecs({
+  brand,
+  product: p,
+}: {
+  brand: Brand | null
+  product: Product
+}) {
   const rows: [string, string][] = [
     ...p.specs,
     [
@@ -92,7 +98,6 @@ export function ProductSpecs({ product: p }: { product: Product }) {
       '信用卡一次付清・Apple Pay・ATM 虛擬帳號・無卡分期（銀角零卡／裕富）',
     ],
   ]
-  const brand = BRANDS.find((b) => b.name === p.brand)
 
   return (
     <>
@@ -119,8 +124,8 @@ export function ProductSpecs({ product: p }: { product: Product }) {
             {p.brand}
           </span>
           <span className='text-[13px] leading-[1.6] text-inverse-body'>
-            {brand?.blurb ??
-              (brand ? `來自${brand.origin}的品牌。` : '[品牌介紹]')}
+            {brand?.blurb ||
+              (brand?.origin ? `來自${brand.origin}的品牌。` : '')}
           </span>
         </span>
         <span className='text-lg text-inverse-accent' aria-hidden>

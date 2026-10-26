@@ -1,4 +1,10 @@
-import type { CategoryId, Product, ProductKind } from '~/lib/catalog'
+import type {
+  Brand,
+  Category,
+  CategoryId,
+  Product,
+  ProductKind,
+} from '~/lib/catalog'
 
 import { imageUrl } from '~/lib/images'
 
@@ -84,7 +90,8 @@ export async function listProducts(db: D1Database): Promise<Product[]> {
     db.prepare(
       `SELECT v.product_id, v.option_label, v.sku, v.stock, v.swatch
        FROM product_variants v JOIN products p ON p.id = v.product_id
-       WHERE p.status = 'active' ORDER BY v.product_id, v.sort`
+       WHERE p.status = 'active' AND v.active = 1
+       ORDER BY v.product_id, v.sort`
     ),
   ])
   const vs = variants.results as VariantRow[]
@@ -102,10 +109,43 @@ export async function getProductByCode(
       .prepare(
         `SELECT v.product_id, v.option_label, v.sku, v.stock, v.swatch
          FROM product_variants v JOIN products p ON p.id = v.product_id
-         WHERE p.code = ?1 ORDER BY v.sort`
+         WHERE p.code = ?1 AND v.active = 1 ORDER BY v.sort`
       )
       .bind(code),
   ])
   const row = (products.results as ProductRow[])[0]
   return row ? toProduct(row, variants.results as VariantRow[]) : null
 }
+
+/** 前台分類（root loader）：未停用的，依後台排序 */
+export async function listCategories(db: D1Database): Promise<Category[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT slug AS id, name, name_en AS en, coming_soon FROM categories
+       WHERE active = 1 ORDER BY sort, id`
+    )
+    .all<Omit<Category, 'comingSoon'> & { coming_soon: number }>()
+  return results.map(({ coming_soon, ...c }) => ({
+    ...c,
+    comingSoon: coming_soon === 1,
+  }))
+}
+
+/** 首頁品牌 A–Z：只列有上架商品的品牌 */
+export async function listBrands(db: D1Database): Promise<Brand[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT b.name, b.origin, b.blurb FROM brands b
+       WHERE EXISTS (SELECT 1 FROM products p
+                     WHERE p.brand_id = b.id AND p.status = 'active')
+       ORDER BY b.name COLLATE NOCASE`
+    )
+    .all<Brand>()
+  return results
+}
+
+export const getBrand = (db: D1Database, name: string) =>
+  db
+    .prepare(`SELECT name, origin, blurb FROM brands WHERE name = ?1`)
+    .bind(name)
+    .first<Brand>()

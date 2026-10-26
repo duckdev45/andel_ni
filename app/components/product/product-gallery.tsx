@@ -52,7 +52,7 @@ export function ProductGallery({
         {soldOut && (
           <span className='absolute inset-0 grid place-items-center bg-background/55'>
             <span className='border border-line bg-background px-4 py-2 text-base font-medium'>
-              已售出
+              已售完
             </span>
           </span>
         )}

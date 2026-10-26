@@ -1,4 +1,5 @@
-// 從 app/lib/catalog.ts 的示範資料產生 D1 種子 SQL（品牌、分類、商品、規格、照片）。
+// 從 app/lib/catalog.ts 的示範資料產生 D1 種子 SQL（商品、規格、照片，及缺少的品牌）。
+// 分類來自 migrations（0002）與後台，品牌清單來自 0008；這裡不動它們。
 // 只給本機與 staging 用；正式站不放假資料（規格 11.2）。
 //
 //   pnpm db:seed           本機
@@ -8,7 +9,7 @@
 
 import { writeFileSync } from 'node:fs'
 
-import { BRANDS, CATEGORIES, PRODUCTS } from '../app/lib/catalog.ts'
+import { PRODUCTS } from '../app/lib/catalog.ts'
 
 const q = (v: null | number | string | undefined) =>
   v == null
@@ -24,43 +25,27 @@ const slugify = (s: string) =>
     .trim()
     .replace(/[\s_]+/g, '-')
 
-// 品牌：型錄品牌清單 ＋ 商品用到但不在清單裡的品牌（產地取規格表「品牌」欄）
-const brands = [...BRANDS]
-for (const p of PRODUCTS) {
-  if (!brands.some((b) => b.name === p.brand)) {
-    const origin = p.specs.find(([k]) => k === '品牌')?.[1].split('・')[1]
-    brands.push({ name: p.brand, origin: origin ?? '' })
-  }
-}
-const brandId = (name: string) => brands.findIndex((b) => b.name === name) + 1
-const categoryId = (slug: string) =>
-  CATEGORIES.findIndex((c) => c.id === slug) + 1
-
 const sql: string[] = [
   'DELETE FROM product_images;',
   'DELETE FROM product_variants;',
   'DELETE FROM products;',
-  'DELETE FROM categories;',
-  'DELETE FROM brands;',
 ]
 
-brands.forEach((b, i) =>
+// 示範商品用到、但品牌清單沒有的品牌（產地取規格表「品牌」欄）
+for (const brand of new Set(PRODUCTS.map((p) => p.brand))) {
+  const origin = PRODUCTS.find((p) => p.brand === brand)
+    ?.specs.find(([k]) => k === '品牌')?.[1]
+    .split('・')[1]
   sql.push(
-    `INSERT INTO brands (id, name, slug, origin, blurb) VALUES (${i + 1}, ${q(b.name)}, ${q(slugify(b.name))}, ${q(b.origin || null)}, ${q(b.blurb)});`
+    `INSERT INTO brands (name, slug, origin) VALUES (${q(brand)}, ${q(slugify(brand))}, ${q(origin)}) ON CONFLICT DO NOTHING;`
   )
-)
-
-CATEGORIES.forEach((c, i) =>
-  sql.push(
-    `INSERT INTO categories (id, slug, name, name_en, sort, coming_soon) VALUES (${i + 1}, ${q(c.id)}, ${q(c.name)}, ${q(c.en)}, ${i}, ${c.comingSoon ? 1 : 0});`
-  )
-)
+}
 
 let variantId = 0
 PRODUCTS.forEach((p, i) => {
   const id = i + 1
   sql.push(
-    `INSERT INTO products (id, code, slug, brand_id, category_id, name, description, price, type, status, is_new, option_name, variant_summary, specs, created_at) VALUES (${id}, ${q(p.code)}, ${q(p.slug)}, ${brandId(p.brand)}, ${categoryId(p.cat)}, ${q(p.name)}, ${q(p.description)}, ${p.price}, ${q(p.kind)}, 'active', ${p.isNew ? 1 : 0}, ${q(p.variants?.name)}, ${q(p.variantSummary)}, ${q(JSON.stringify(p.specs))}, ${q(p.createdAt)});`
+    `INSERT INTO products (id, code, slug, brand_id, category_id, name, description, price, type, status, is_new, option_name, variant_summary, specs, created_at) VALUES (${id}, ${q(p.code)}, ${q(p.slug)}, (SELECT id FROM brands WHERE name = ${q(p.brand)}), (SELECT id FROM categories WHERE slug = ${q(p.cat)}), ${q(p.name)}, ${q(p.description)}, ${p.price}, ${q(p.kind)}, 'active', ${p.isNew ? 1 : 0}, ${q(p.variants?.name)}, ${q(p.variantSummary)}, ${q(JSON.stringify(p.specs))}, ${q(p.createdAt)});`
   )
   const options = p.variants?.options ?? [
     { label: null, sku: p.sku, stock: p.stock, swatch: undefined },
@@ -77,6 +62,4 @@ PRODUCTS.forEach((p, i) => {
 
 const out = process.argv[2] ?? '.wrangler/seed.sql'
 writeFileSync(out, sql.join('\n') + '\n')
-console.log(
-  `種子 SQL：${out}（${brands.length} 品牌、${CATEGORIES.length} 分類、${PRODUCTS.length} 商品、${variantId} 規格）`
-)
+console.log(`種子 SQL：${out}（${PRODUCTS.length} 商品、${variantId} 規格）`)

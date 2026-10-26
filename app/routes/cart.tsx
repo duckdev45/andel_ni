@@ -1,5 +1,6 @@
 import type { Route } from './+types/cart'
 
+import { useEffect } from 'react'
 import { Link } from 'react-router'
 
 import { AddonItem, CartLine } from '~/components/checkout/cart-line'
@@ -20,7 +21,8 @@ import {
   FREE_SHIPPING_THRESHOLD,
   SHIPPING_FEES,
 } from '~/lib/catalog'
-import { ADDON_IDS, isCustomLine } from '~/lib/mock/checkout'
+import { ADDON_IDS, isCustomLine, stockIssue } from '~/lib/mock/checkout'
+import { refreshProducts } from '~/lib/products-client'
 import { privateMeta } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
@@ -30,6 +32,8 @@ export default function CartPage() {
   const user = useUser()
   const { items, count, ready, subtotal } = useCart()
   const hydrated = useHydrated() && ready
+  useEffect(refreshProducts, [])
+  const blocked = items.some((i) => stockIssue(i))
 
   const free = subtotal >= FREE_SHIPPING_THRESHOLD
   const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)
@@ -149,7 +153,12 @@ export default function CartPage() {
             </dl>
             <div className='flex flex-col gap-3 px-5 pb-5'>
               {hasCustom && <CustomOrderNotice />}
-              <CheckoutButton />
+              {blocked && (
+                <p className='m-0 text-[13px] leading-[1.7] font-medium text-brand'>
+                  購物車裡有商品庫存不足，請先依提示調整或移除，才能結帳。
+                </p>
+              )}
+              <CheckoutButton disabled={blocked} />
               <p className='m-0 text-[12.5px] leading-[1.7] text-muted-foreground'>
                 運費以超商取貨估算，可於下一步改選宅配。付款：信用卡・Apple
                 Pay・ATM 虛擬帳號・無卡分期。

@@ -8,6 +8,7 @@ import {
   Package,
   Plus,
   ReceiptText,
+  Tags,
 } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
@@ -55,6 +56,7 @@ const NAV = [
   { to: '/admin', label: '總覽', title: '總覽', icon: LayoutGrid },
   { to: '/admin/orders', label: '訂單', title: '訂單管理', icon: ReceiptText },
   { to: '/admin/products', label: '商品', title: '商品管理', icon: Package },
+  { to: '/admin/catalog', label: '分類品牌', title: '分類與品牌', icon: Tags },
   { to: '/admin/stock', label: '庫存', title: '庫存管理', icon: ChartColumn },
   { to: '/admin/ledger', label: '記帳簿', title: '記帳簿', icon: BookOpenText },
 ]
@@ -183,7 +185,7 @@ function Shell() {
 
       {/* 手機底部分頁 */}
       <nav
-        className='fixed inset-x-0 bottom-0 z-30 grid h-[calc(66px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-border bg-[#FBFBF9] pb-[calc(6px+env(safe-area-inset-bottom))] lg:hidden'
+        className='fixed inset-x-0 bottom-0 z-30 grid h-[calc(66px+env(safe-area-inset-bottom))] grid-cols-6 border-t border-border bg-[#FBFBF9] pb-[calc(6px+env(safe-area-inset-bottom))] lg:hidden'
         aria-label='後台'
       >
         {NAV.map((n) => (

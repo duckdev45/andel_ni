@@ -1,3 +1,5 @@
+import type { CategoryId } from '~/lib/catalog'
+
 import { ImagePlus, X } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -15,7 +17,6 @@ import { Textarea } from '~/components/ui/textarea'
 import {
   type AdminProduct,
   avgCost,
-  brandCurrency,
   CURRENCIES,
   type Currency,
   money,
@@ -24,7 +25,6 @@ import {
   type ProductType,
   taipeiDate,
 } from '~/lib/admin'
-import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
 import { imageUrl } from '~/lib/images'
 import { cn } from '~/lib/utils'
 
@@ -72,16 +72,24 @@ type Draft = {
 }
 
 export function ProductSheetBody({ product }: { product?: AdminProduct }) {
-  const { products, purchases, settings, saveProduct, closeSheet } = useAdmin()
+  const {
+    brands,
+    categories,
+    purchases,
+    settings,
+    brandCurrency,
+    saveProduct,
+    closeSheet,
+  } = useAdmin()
   const isNew = !product
   const ids = useId()
   const [d, setD] = useState<Draft>(() => {
-    const brand = product?.brand ?? BRANDS[0].name
+    const brand = product?.brand ?? ''
     const cur = brandCurrency(brand)
     return {
       name: product?.name ?? '',
       brand,
-      cat: product?.cat ?? 'bag',
+      cat: product?.cat ?? categories.find((c) => c.active)?.id ?? '',
       price: product ? String(product.price) : '',
       type: product?.type ?? '現貨',
       stock: product ? String(product.stock) : '',
@@ -114,9 +122,8 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
   const setOpt = (i: number, patch: Partial<Draft['vOpts'][number]>) =>
     set({ vOpts: d.vOpts.map((o, j) => (j === i ? { ...o, ...patch } : o)) })
 
-  const brands = [
-    ...new Set([...BRANDS.map((b) => b.name), ...products.map((p) => p.brand)]),
-  ].sort((a, b) => a.localeCompare(b))
+  // 停用的分類不能選；編輯中的商品原本就在停用分類時保留
+  const catOptions = categories.filter((c) => c.active || c.id === product?.cat)
   const price = num(d.price)
   const cost = isNew
     ? Math.round(num(d.unit) * num(d.rate) * (1 + num(d.fx) / 100))
@@ -320,6 +327,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
               value={d.brand}
               list={`${ids}-brands`}
               autoComplete='off'
+              placeholder='選擇或輸入新品牌'
               aria-invalid={!!errors.brand}
               onChange={(e) => {
                 const brand = e.target.value
@@ -329,7 +337,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
             />
             <datalist id={`${ids}-brands`}>
               {brands.map((b) => (
-                <option key={b} value={b} />
+                <option key={b.id} value={b.name} />
               ))}
             </datalist>
           </Field>
@@ -345,7 +353,7 @@ export function ProductSheetBody({ product }: { product?: AdminProduct }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className='rounded-none'>
-                {CATEGORIES.map((c) => (
+                {catOptions.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>

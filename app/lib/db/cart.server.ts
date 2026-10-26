@@ -15,7 +15,7 @@ export async function getCartLines(db: D1Database, userId: number) {
        FROM carts c
        JOIN product_variants v ON v.id = c.variant_id
        JOIN products p ON p.id = v.product_id
-       WHERE c.user_id = ?1 AND p.status = 'active'
+       WHERE c.user_id = ?1 AND p.status = 'active' AND v.active = 1
        ORDER BY c.rowid`
     )
     .bind(userId)
@@ -44,10 +44,11 @@ export function parseLines(body: unknown): CartLine[] | null {
   return ok ? (lines as CartLine[]) : null
 }
 
-// 對應不到的規格（商品已刪、規格改名）直接略過
+// 對應不到的規格（商品已刪、規格改名或停用）直接略過
 const UPSERT = `INSERT INTO carts (user_id, variant_id, qty, updated_at)
   SELECT ?1, v.id, ?4, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-  FROM product_variants v WHERE v.product_id = ?2 AND v.option_label IS ?3
+  FROM product_variants v
+  WHERE v.product_id = ?2 AND v.option_label IS ?3 AND v.active = 1
   ON CONFLICT (user_id, variant_id) DO UPDATE SET updated_at = excluded.updated_at, qty = `
 
 /** 以前端為準整批取代（已登入時每次改購物車） */
@@ -67,7 +68,7 @@ export const replaceCart = (
 
 /**
  * 登入時合併瀏覽器購物車：同商品同規格數量相加，不超過庫存（規格 4）。
- * 客訂、代購（含部分現貨裡沒庫存的規格）上限 CUSTOM_MAX_QTY；至少留 1 件，結帳時再提示已售出。
+ * 客訂、代購（含部分現貨裡沒庫存的規格）上限 CUSTOM_MAX_QTY；至少留 1 件，結帳時再提示已售完。
  */
 export async function mergeCart(
   db: D1Database,

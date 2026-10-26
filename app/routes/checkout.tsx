@@ -1,7 +1,7 @@
 import type { Route } from './+types/checkout'
 
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import { LoginForm } from '~/components/account/login-form'
 import { CheckoutForm } from '~/components/checkout/checkout-form'
@@ -11,6 +11,8 @@ import { useHydrated } from '~/components/checkout/use-hydrated'
 import { PageTitle } from '~/components/store/typography'
 import { useUser } from '~/lib/auth'
 import { useCart } from '~/lib/cart'
+import { stockIssue } from '~/lib/mock/checkout'
+import { refreshProducts } from '~/lib/products-client'
 import { privateMeta } from '~/lib/seo'
 
 export const meta: Route.MetaFunction = () => privateMeta('填寫資料')
@@ -19,7 +21,7 @@ export default function CheckoutPage() {
   const hydrated = useHydrated()
   const user = useUser()
   const { clear, items, ready: cartReady } = useCart()
-  const navigate = useNavigate()
+  useEffect(refreshProducts, [])
   // 送出後購物車會清空；避免跳轉前閃一下「購物車是空的」
   const [placed, setPlaced] = useState(false)
 
@@ -65,6 +67,18 @@ export default function CheckoutPage() {
             瀏覽本季選物 <span aria-hidden='true'>→</span>
           </Link>
         </div>
+      ) : items.some((i) => stockIssue(i)) ? (
+        <div className='flex flex-col items-start gap-5 border-y border-line py-16'>
+          <p className='m-0 text-xl font-bold'>
+            購物車裡有商品庫存不足，請先回購物車移除。
+          </p>
+          <Link
+            className='flex min-h-13 items-center gap-6 bg-primary px-[18px] text-[15px] font-medium text-primary-foreground'
+            to='/cart'
+          >
+            回購物車 <span aria-hidden='true'>→</span>
+          </Link>
+        </div>
       ) : (
         <CheckoutForm
           key={user.email}
@@ -72,9 +86,9 @@ export default function CheckoutPage() {
           user={user}
           onPlaced={(no) => {
             setPlaced(true)
-            // 伺服器已清空會員購物車；這裡同步畫面
+            // 伺服器已清空會員購物車；這裡同步畫面，再前往綠界付款頁（整頁跳轉）
             clear()
-            navigate(`/checkout/done?order=${no}`)
+            window.location.assign(`/api/payments/${no}/checkout`)
           }}
         />
       )}

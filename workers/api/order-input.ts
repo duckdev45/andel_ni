@@ -146,7 +146,7 @@ export function priceOrder(
         error:
           r.stock > 0
             ? `${label} 只剩 ${r.stock} 件，請調整數量`
-            : `${label} 已售出，請回購物車移除`,
+            : `${label} 已售完，請回購物車移除`,
       }
     if (kind !== '現貨' && l.qty > CUSTOM_MAX_QTY)
       return { error: `${label} 每筆訂單最多 ${CUSTOM_MAX_QTY} 件` }

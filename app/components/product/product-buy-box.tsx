@@ -20,7 +20,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 
 function stockText(o: VariantOption, custom: boolean) {
   if (custom) return { text: '可客訂', low: false }
-  if (o.stock === 0) return { text: '已售出', low: false }
+  if (o.stock === 0) return { text: '已售完', low: false }
   if (o.stock <= LOW_STOCK) return { text: `剩 ${o.stock} 件`, low: true }
   return { text: `庫存 ${o.stock}`, low: false }
 }
@@ -171,7 +171,7 @@ export function ProductBuyBox({ product: p }: { product: Product }) {
           >
             <span>
               {soldOut
-                ? '已售出'
+                ? '已售完'
                 : added
                   ? '✓ 已加入購物車'
                   : !canAdd
@@ -226,7 +226,7 @@ export function ProductBuyBox({ product: p }: { product: Product }) {
       {soldOut && (
         <div className='flex flex-wrap items-center justify-between gap-3 border border-line bg-muted px-4 py-3.5'>
           <p className='m-0 text-[13.5px] leading-[1.7]'>
-            這件商品已售出，你可以看看下方的相似商品。
+            這件商品已售完，你可以看看下方的相似商品。
           </p>
           <a className='border-b border-line pb-px text-[13px]' href='#related'>
             看相似商品 ↓

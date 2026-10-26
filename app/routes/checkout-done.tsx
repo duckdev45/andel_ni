@@ -65,27 +65,7 @@ function OrderDone({ order }: { order: OrderDetail }) {
             : `商品送達 ${order.destination.split('（')[0]} 後，會以簡訊通知你取貨。`}
         </p>
 
-        {/* ponytail: 綠界付款在第 7 步接；接好後信用卡等導到綠界付款頁，ATM 顯示綠界給的虛擬帳號 */}
-        <div className='flex max-w-[620px] flex-col gap-2.5 border border-line p-5'>
-          <span className='font-mono text-xs text-muted-foreground'>
-            付款狀態
-          </span>
-          <p className='m-0 text-[15px] leading-[1.7]'>
-            {order.statusLabel}・{order.payLabel}
-            {order.payBy && (
-              <>
-                ，請於 <span className='font-mono'>{order.payBy}</span>{' '}
-                前完成付款，逾時訂單會自動取消。
-              </>
-            )}
-          </p>
-          <p className='m-0 border-t border-border pt-2.5 text-[13px] leading-[1.7] text-muted-foreground'>
-            線上付款即將開放。
-            <strong className='font-medium text-brand'>
-              我們不會打電話要求你操作 ATM。
-            </strong>
-          </p>
-        </div>
+        <PaymentBox order={order} />
 
         <div className='flex flex-wrap gap-2.5'>
           <Link
@@ -169,6 +149,66 @@ function OrderDone({ order }: { order: OrderDetail }) {
           </p>
         )}
       </SummaryPanel>
+    </div>
+  )
+}
+
+/** 付款狀態：待付款可前往綠界；ATM 顯示轉帳帳號；無卡分期審核中 */
+function PaymentBox({ order }: { order: OrderDetail }) {
+  const info = order.payInfo
+  const atm = info && 'account' in info ? info : null
+  return (
+    <div className='flex max-w-[620px] flex-col gap-2.5 border border-line p-5'>
+      <span className='font-mono text-xs text-muted-foreground'>付款狀態</span>
+      <p className='m-0 text-[15px] leading-[1.7]'>
+        {order.statusLabel}・{order.payLabel}
+        {order.status === 'pending_shipment' &&
+          '，已收到付款，我們會盡快出貨。'}
+        {order.reason && `。${order.reason}`}
+      </p>
+      {atm ? (
+        <dl className='m-0 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-border pt-2.5 text-[15px]'>
+          <dt className='text-muted-foreground'>銀行代碼</dt>
+          <dd className='m-0 font-mono'>{atm.bank}</dd>
+          <dt className='text-muted-foreground'>轉帳帳號</dt>
+          <dd className='m-0 font-mono text-lg font-medium tracking-wide'>
+            {atm.account}
+          </dd>
+          <dt className='text-muted-foreground'>金額</dt>
+          <dd className='m-0 font-mono'>{formatPrice(order.total)}</dd>
+          <dt className='text-muted-foreground'>繳費期限</dt>
+          <dd className='m-0 font-mono'>{atm.expire} 23:59</dd>
+        </dl>
+      ) : info ? (
+        <p className='m-0 border-t border-border pt-2.5 text-[14px] leading-[1.7]'>
+          無卡分期申請已送出，核准約需 1–3
+          個工作天，核准後訂單會自動轉為待出貨。
+        </p>
+      ) : (
+        order.status === 'pending_payment' && (
+          <div className='flex flex-col items-start gap-3 border-t border-border pt-3'>
+            {order.payBy && (
+              <p className='m-0 text-[14px] leading-[1.7]'>
+                請於 <span className='font-mono'>{order.payBy}</span>{' '}
+                前完成付款，逾時訂單會自動取消。
+              </p>
+            )}
+            {/* 一般連結（整頁跳轉）：由伺服器產生送往綠界的表單 */}
+            <a
+              className='flex min-h-12 items-center gap-6 bg-brand px-[18px] text-[15px] font-medium text-brand-foreground'
+              href={`/api/payments/${order.no}/checkout`}
+            >
+              前往付款 <span aria-hidden='true'>→</span>
+            </a>
+          </div>
+        )
+      )}
+      <p className='m-0 border-t border-border pt-2.5 text-[13px] leading-[1.7] text-muted-foreground'>
+        付款由綠界科技處理，本店不會經手你的卡號。
+        <strong className='font-medium text-brand'>
+          我們不會打電話要求你操作 ATM。
+        </strong>
+      </p>
     </div>
   )
 }

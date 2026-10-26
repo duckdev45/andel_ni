@@ -1,13 +1,14 @@
 import type { Route } from './+types/home'
+import type { Brand, Category, CategoryId } from '~/lib/catalog'
 
 import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { SectionTitle } from '~/components/store/typography'
-import { BRANDS, CATEGORIES, type CategoryId } from '~/lib/catalog'
+import { useCategories } from '~/lib/categories'
 import { dbFrom } from '~/lib/context'
-import { listProducts } from '~/lib/db/products.server'
+import { listBrands, listProducts } from '~/lib/db/products.server'
 import { originFrom, seoMeta, SITE } from '~/lib/seo'
 import { cn } from '~/lib/utils'
 
@@ -45,14 +46,18 @@ const SORTS = [
 ] as const
 type Sort = (typeof SORTS)[number][0]
 
-const catCount = CATEGORIES.filter((c) => !c.comingSoon).length
-
 export async function loader({ context }: Route.LoaderArgs) {
-  return { products: await listProducts(dbFrom(context)) }
+  const db = dbFrom(context)
+  const [products, brands] = await Promise.all([
+    listProducts(db),
+    listBrands(db),
+  ])
+  return { products, brands }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { products } = loaderData
+  const { products, brands } = loaderData
+  const categories = useCategories()
   const [cat, setCat] = useState<'all' | CategoryId>('all')
   const [sort, setSort] = useState<Sort>('new')
 
@@ -65,12 +70,16 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           ? a.price - b.price
           : b.price - a.price
     )
-  const catLabel =
-    cat === 'all' ? '全部' : CATEGORIES.find((c) => c.id === cat)?.name
+  const current = categories.find((c) => c.id === cat)
+  const catLabel = current?.name ?? '全部'
 
   return (
     <main>
-      <Hero newCount={products.filter((p) => p.isNew).length} />
+      <Hero
+        brandCount={brands.length}
+        catCount={categories.filter((c) => !c.comingSoon).length}
+        newCount={products.filter((p) => p.isNew).length}
+      />
 
       <section
         id='cats'
@@ -89,7 +98,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <div className='grid grid-cols-2 border-t border-l border-t-line border-l-border sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]'>
             {[
               { id: 'all' as const, name: '全部', en: 'All' },
-              ...CATEGORIES,
+              ...categories,
             ].map((c, i) => {
               const on = cat === c.id
               const count =
@@ -168,8 +177,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           {items.length === 0 && (
             <div className='flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border border-t-0 border-line px-6 py-10'>
               <p className='text-xl font-bold'>
-                {cat === 'home'
-                  ? '家飾選品即將登場'
+                {current?.comingSoon
+                  ? `${current.name}選品即將登場`
                   : '這個分類的商品整理中，敬請期待'}
               </p>
               <a className='border-b border-line pb-0.5 text-sm' href='#nl'>
@@ -180,13 +189,21 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </div>
       </section>
 
-      <Brands />
+      <Brands brands={brands} soon={categories.filter((c) => c.comingSoon)} />
       <About />
     </main>
   )
 }
 
-function Hero({ newCount }: { newCount: number }) {
+function Hero({
+  brandCount,
+  catCount,
+  newCount,
+}: {
+  brandCount: number
+  catCount: number
+  newCount: number
+}) {
   return (
     <section
       className='relative overflow-hidden border-b border-line bg-[#2B2724] bg-[url(/images/hero.jpg)] bg-cover bg-[center_42%] text-[#F6F4F0]'
@@ -229,7 +246,7 @@ function Hero({ newCount }: { newCount: number }) {
                 className='flex min-h-13 items-center border border-[#F6F4F0]/70 px-5 text-[15px] font-medium'
                 href='#brands'
               >
-                瀏覽 {BRANDS.length} 個品牌
+                瀏覽 {brandCount} 個品牌
               </a>
             </div>
           </div>
@@ -237,7 +254,7 @@ function Hero({ newCount }: { newCount: number }) {
             <HeroStat
               className='border-r pr-4'
               label='收錄品牌'
-              value={String(BRANDS.length)}
+              value={String(brandCount)}
             />
             <HeroStat
               className='pl-4'
@@ -289,7 +306,7 @@ function HeroStat({
   )
 }
 
-function Brands() {
+function Brands({ brands, soon }: { brands: Brand[]; soon: Category[] }) {
   return (
     <section
       id='brands'
@@ -305,11 +322,11 @@ function Brands() {
             </span>
           </h2>
           <span className='font-mono text-xs text-inverse-muted'>
-            {BRANDS.length} 個品牌・依字母排序
+            {brands.length} 個品牌・依字母排序
           </span>
         </div>
         <ol className='grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x-8 border-t border-inverse-foreground'>
-          {BRANDS.map((b, i) => (
+          {brands.map((b, i) => (
             <li key={b.name} className='border-b border-inverse-rule'>
               <Link
                 className='flex min-h-16 items-baseline gap-3.5 py-4.5'
@@ -328,17 +345,22 @@ function Brands() {
             </li>
           ))}
         </ol>
-        <div className='mt-10 flex flex-wrap items-baseline gap-x-9 gap-y-3 border border-inverse-rule px-6 py-5'>
-          <span className='font-mono text-xs text-inverse-accent'>
-            COMING SOON
-          </span>
-          <span className='font-display text-[22px] font-extrabold [font-stretch:112%]'>
-            家飾選品即將登場
-          </span>
-          <a className='ml-auto text-sm text-inverse-body' href='#nl'>
-            預計進貨，上架時通知我 →
-          </a>
-        </div>
+        {soon.map((c) => (
+          <div
+            key={c.id}
+            className='mt-10 flex flex-wrap items-baseline gap-x-9 gap-y-3 border border-inverse-rule px-6 py-5'
+          >
+            <span className='font-mono text-xs text-inverse-accent'>
+              COMING SOON
+            </span>
+            <span className='font-display text-[22px] font-extrabold [font-stretch:112%]'>
+              {c.name}選品即將登場
+            </span>
+            <a className='ml-auto text-sm text-inverse-body' href='#nl'>
+              預計進貨，上架時通知我 →
+            </a>
+          </div>
+        ))}
       </div>
     </section>
   )

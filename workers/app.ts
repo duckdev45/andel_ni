@@ -11,7 +11,7 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE
 )
 
-// 商品照片（R2）；上傳時已設好 Content-Type 與長效快取
+// 商品照片（R2）：本機開發用；正式與 staging 的照片走 R2 自訂網域（app/lib/images.ts）
 async function image(env: Env, key: string) {
   const obj = await env.IMAGES.get(key)
   if (!obj) return new Response('Not Found', { status: 404 })
@@ -51,8 +51,13 @@ async function route(request: Request, env: Env, ctx: ExecutionContext) {
 
 export default {
   async fetch(request, env, ctx) {
-    const response = await route(request, env, ctx)
     const url = new URL(request.url)
+    // www 統一轉到主網域，避免同一頁有兩個網址
+    if (url.hostname.startsWith('www.')) {
+      url.hostname = url.hostname.slice(4)
+      return Response.redirect(url.toString(), 301)
+    }
+    const response = await route(request, env, ctx)
     const admin = isAdminPath(url.pathname)
     if (!admin && isIndexableHost(url)) return response
 

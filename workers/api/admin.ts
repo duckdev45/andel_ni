@@ -10,6 +10,10 @@ import {
 import { changeOrderStatus } from '../../app/lib/db/orders.server'
 import {
   assignSkus,
+  type BrandInput,
+  CATEGORY_SLUG,
+  parseBrandInput,
+  parseCategoryInput,
   parseLedgerSettings,
   parseProductInput,
   parsePurchaseInput,
@@ -45,6 +49,20 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
     .replace(/[\s-]+/g, '-')
+
+/** 唯一鍵衝突（D1 的錯誤訊息含 UNIQUE constraint failed） */
+const isUnique = (e: unknown) =>
+  e instanceof Error && e.message.includes('UNIQUE')
+
+/** 分類要存在；停用的分類不能放上架中的商品。回傳錯誤訊息或 null */
+async function categoryError(db: D1Database, slug: string, active: boolean) {
+  const cat = await db
+    .prepare(`SELECT active FROM categories WHERE slug = ?1`)
+    .bind(slug)
+    .first<{ active: number }>()
+  if (!cat) return '分類不正確'
+  return active && !cat.active ? '分類已停用，請換分類或先下架' : null
+}
 
 /** 新增或更新商品的寫入語句；商品以 code 對應，整批在同一個交易 */
 function saveStatements(
@@ -95,10 +113,18 @@ function saveStatements(
              WHERE code = ?1`
           )
           .bind(code, ...fields),
-    // ponytail: 已有訂單的規格刪不掉（order_items 外鍵），會整批失敗；接訂單後改成停用規格
+    // 移除的規格：沒被訂單、進貨用過就刪；用過的（外鍵擋刪除）改成停用，保留歷史紀錄
     db
       .prepare(
         `DELETE FROM product_variants WHERE product_id = ${pid}
+           AND sku NOT IN (SELECT value FROM json_each(?2))
+           AND id NOT IN (SELECT variant_id FROM order_items)
+           AND id NOT IN (SELECT variant_id FROM purchases)`
+      )
+      .bind(code, JSON.stringify(skus)),
+    db
+      .prepare(
+        `UPDATE product_variants SET active = 0 WHERE product_id = ${pid}
            AND sku NOT IN (SELECT value FROM json_each(?2))`
       )
       .bind(code, JSON.stringify(skus)),
@@ -108,7 +134,7 @@ function saveStatements(
           `INSERT INTO product_variants (product_id, option_label, sku, stock, sort)
            VALUES (${pid}, ?2, ?3, ?4, ?5)
            ON CONFLICT (sku) DO UPDATE SET option_label = excluded.option_label,
-             stock = excluded.stock, sort = excluded.sort`
+             stock = excluded.stock, sort = excluded.sort, active = 1`
         )
         .bind(code, o.label, skus[i], o.stock, i)
     ),
@@ -132,6 +158,8 @@ admin.post('/products', async (c) => {
   if ('error' in parsed) return c.json(parsed, 400)
   const p = parsed.value
   const db = c.env.DB
+  const catError = await categoryError(db, p.cat, p.active)
+  if (catError) return c.json({ error: catError }, 400)
 
   // 商品編號：目前最大號 +1；商品只下架不刪除，號碼不會重用
   const max = await db
@@ -161,6 +189,8 @@ admin.put('/products/:code', async (c) => {
   if ('error' in parsed) return c.json(parsed, 400)
   const p = parsed.value
   const db = c.env.DB
+  const catError = await categoryError(db, p.cat, p.active)
+  if (catError) return c.json({ error: catError }, 400)
 
   const { results: existing } = await db
     .prepare(
@@ -190,15 +220,163 @@ admin.patch('/products/:code', async (c) => {
   } | null
   if (typeof body?.active !== 'boolean')
     return c.json({ error: 'active 必須是 true 或 false' }, 400)
-  const { meta } = await c.env.DB.prepare(
-    `UPDATE products SET status = ?2 WHERE code = ?1`
-  )
-    .bind(
-      c.req.param('code').toUpperCase(),
-      body.active ? 'active' : 'inactive'
+  const db = c.env.DB
+  const code = c.req.param('code').toUpperCase()
+  const cat = await db
+    .prepare(
+      `SELECT c.slug FROM products p JOIN categories c ON c.id = p.category_id
+       WHERE p.code = ?1`
     )
+    .bind(code)
+    .first<{ slug: string }>()
+  if (!cat) return c.json({ error: '找不到商品' }, 404)
+  const catError = await categoryError(db, cat.slug, body.active)
+  if (catError) return c.json({ error: catError }, 400)
+  await db
+    .prepare(`UPDATE products SET status = ?2 WHERE code = ?1`)
+    .bind(code, body.active ? 'active' : 'inactive')
     .run()
-  return meta.changes ? c.body(null, 204) : c.json({ error: '找不到商品' }, 404)
+  return c.body(null, 204)
+})
+
+// ── 分類（代碼建立後不改；不刪除，用停用） ───────────────
+
+admin.post('/categories', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as null | {
+    slug?: unknown
+  }
+  const parsed = parseCategoryInput(body)
+  if ('error' in parsed) return c.json(parsed, 400)
+  const slug = body?.slug
+  if (typeof slug !== 'string' || !CATEGORY_SLUG.test(slug))
+    return c.json(
+      { error: '分類代碼需 2–12 個小寫英文或數字，英文字母開頭' },
+      400
+    )
+  const v = parsed.value
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO categories (slug, name, name_en, coming_soon, active, sort)
+       VALUES (?1, ?2, ?3, ?4, ?5,
+         (SELECT COALESCE(MAX(sort), -1) + 1 FROM categories))`
+    )
+      .bind(slug, v.name, v.en, v.comingSoon ? 1 : 0, v.active ? 1 : 0)
+      .run()
+  } catch (e) {
+    if (isUnique(e)) return c.json({ error: '分類代碼已存在' }, 409)
+    throw e
+  }
+  return c.body(null, 201)
+})
+
+admin.put('/categories/:slug', async (c) => {
+  const parsed = parseCategoryInput(await c.req.json().catch(() => null))
+  if ('error' in parsed) return c.json(parsed, 400)
+  const v = parsed.value
+  const slug = c.req.param('slug')
+  // 停用時同一句檢查沒有上架中的商品
+  const row = await c.env.DB.prepare(
+    `UPDATE categories SET name = ?2, name_en = ?3, coming_soon = ?4, active = ?5
+     WHERE slug = ?1 AND (?5 = 1 OR NOT EXISTS (
+       SELECT 1 FROM products p
+       WHERE p.category_id = categories.id AND p.status = 'active'))
+     RETURNING id`
+  )
+    .bind(slug, v.name, v.en, v.comingSoon ? 1 : 0, v.active ? 1 : 0)
+    .first()
+  if (row) return c.body(null, 204)
+  const exists = await c.env.DB.prepare(
+    `SELECT 1 FROM categories WHERE slug = ?1`
+  )
+    .bind(slug)
+    .first()
+  return exists
+    ? c.json({ error: '分類下還有上架中的商品，先下架或換分類才能停用' }, 409)
+    : c.json({ error: '找不到分類' }, 404)
+})
+
+/** 排序：依傳入的代碼順序 */
+admin.put('/categories', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as null | {
+    order?: unknown
+  }
+  const order = body?.order
+  if (
+    !Array.isArray(order) ||
+    order.length > 100 ||
+    !order.every((s) => typeof s === 'string')
+  )
+    return c.json({ error: 'order 不正確' }, 400)
+  const db = c.env.DB
+  await db.batch(
+    order.map((slug, i) =>
+      db
+        .prepare(`UPDATE categories SET sort = ?2 WHERE slug = ?1`)
+        .bind(slug, i)
+    )
+  )
+  return c.body(null, 204)
+})
+
+// ── 品牌（上架商品時輸入新品牌也會自動建立） ─────────────
+
+const brandFields = (v: BrandInput) => [
+  v.name,
+  slugify(v.name) || v.name,
+  v.origin,
+  v.blurb,
+  v.currency,
+]
+
+admin.post('/brands', async (c) => {
+  const parsed = parseBrandInput(await c.req.json().catch(() => null))
+  if ('error' in parsed) return c.json(parsed, 400)
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO brands (name, slug, origin, blurb, currency)
+       VALUES (?1, ?2, NULLIF(?3, ''), NULLIF(?4, ''), ?5)`
+    )
+      .bind(...brandFields(parsed.value))
+      .run()
+  } catch (e) {
+    if (isUnique(e)) return c.json({ error: '品牌已存在' }, 409)
+    throw e
+  }
+  return c.body(null, 201)
+})
+
+// ponytail: 改名只改品牌表；已產生的 SKU 與舊訂單的商品名稱維持原樣
+admin.put('/brands/:id', async (c) => {
+  const parsed = parseBrandInput(await c.req.json().catch(() => null))
+  if ('error' in parsed) return c.json(parsed, 400)
+  try {
+    const { meta } = await c.env.DB.prepare(
+      `UPDATE brands SET name = ?2, slug = ?3, origin = NULLIF(?4, ''),
+         blurb = NULLIF(?5, ''), currency = ?6
+       WHERE id = ?1`
+    )
+      .bind(Number(c.req.param('id')), ...brandFields(parsed.value))
+      .run()
+    return meta.changes
+      ? c.body(null, 204)
+      : c.json({ error: '找不到品牌' }, 404)
+  } catch (e) {
+    if (isUnique(e)) return c.json({ error: '已有同名品牌' }, 409)
+    throw e
+  }
+})
+
+/** 只能刪沒有商品的品牌（打錯字、不再代理） */
+admin.delete('/brands/:id', async (c) => {
+  const { meta } = await c.env.DB.prepare(
+    `DELETE FROM brands WHERE id = ?1
+       AND NOT EXISTS (SELECT 1 FROM products WHERE brand_id = brands.id)`
+  )
+    .bind(Number(c.req.param('id')))
+    .run()
+  return meta.changes
+    ? c.body(null, 204)
+    : c.json({ error: '品牌還有商品，不能刪除' }, 409)
 })
 
 /** 盤點修正：庫存 ± delta，不低於 0 */
@@ -228,7 +406,8 @@ admin.post('/purchases', async (c) => {
   if ('error' in r) return c.json(r, 400)
   const p = r.value
   const variant = await c.env.DB.prepare(
-    `SELECT id FROM product_variants WHERE product_id = ?1 AND option_label IS ?2`
+    `SELECT id FROM product_variants
+     WHERE product_id = ?1 AND option_label IS ?2 AND active = 1`
   )
     .bind(Number(p.pid.slice(1)), p.opt)
     .first<{ id: number }>()
