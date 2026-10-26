@@ -12,7 +12,6 @@ import { NotFound } from '~/components/store/not-found'
 import { ProductCard, ProductGrid } from '~/components/store/product-card'
 import { PageTitle } from '~/components/store/typography'
 import {
-  categoryName,
   codeFromHandle,
   formatPrice,
   isCustomOrder,
@@ -21,8 +20,9 @@ import {
   productNo,
   productPath,
 } from '~/lib/catalog'
+import { categoriesFrom, useCategoryName } from '~/lib/categories'
 import { dbFrom } from '~/lib/context'
-import { listProducts } from '~/lib/db/products.server'
+import { getBrand, listProducts } from '~/lib/db/products.server'
 import { originFrom, seoMeta } from '~/lib/seo'
 
 /** 推薦：同品牌 → 同分類 → 其他新品，排除自己與已售完 */
@@ -38,7 +38,8 @@ function relatedProducts(p: Product, all: Product[], n = 4) {
 // ponytail: 一次讀全部上架商品再算上一件／下一件與推薦；商品破千再改成分別查詢
 export async function loader({ context, params }: Route.LoaderArgs) {
   const code = codeFromHandle(params.handle)
-  const all = code ? await listProducts(dbFrom(context)) : []
+  const db = dbFrom(context)
+  const all = code ? await listProducts(db) : []
   const product = all.find((p) => p.code === code)
   if (!product) throw new Response('Not Found', { status: 404 })
   // 舊網址、描述打錯或改過：永久轉到正式網址，分享連結不失效
@@ -47,6 +48,7 @@ export async function loader({ context, params }: Route.LoaderArgs) {
   const byCode = [...all].sort((a, b) => a.code.localeCompare(b.code))
   const i = byCode.indexOf(product)
   return {
+    brand: await getBrand(db, product.brand),
     next: byCode[i + 1] ?? null,
     prev: byCode[i - 1] ?? null,
     product,
@@ -100,7 +102,7 @@ export const meta: Route.MetaFunction = ({ loaderData, matches }) => {
         image: [origin + p.image],
         sku: p.id,
         brand: { '@type': 'Brand', name: p.brand },
-        category: categoryName(p.cat),
+        category: categoriesFrom(matches).find((c) => c.id === p.cat)?.name,
         offers: {
           '@type': 'Offer',
           url: origin + path,
@@ -115,8 +117,9 @@ export const meta: Route.MetaFunction = ({ loaderData, matches }) => {
 }
 
 export default function ProductPage({ loaderData }: Route.ComponentProps) {
-  const { next, prev, product: p, related } = loaderData
+  const { brand, next, prev, product: p, related } = loaderData
   const soldOut = isSoldOut(p)
+  const categoryName = useCategoryName()
 
   return (
     <main className='container-page'>
@@ -153,7 +156,7 @@ export default function ProductPage({ loaderData }: Route.ComponentProps) {
         >
           <ProductHeading product={p} />
           <ProductBuyBox key={p.id} product={p} />
-          <ProductSpecs product={p} />
+          <ProductSpecs brand={brand} product={p} />
         </section>
       </div>
 

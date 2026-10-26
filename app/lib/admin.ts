@@ -1,6 +1,6 @@
 // 後台型別與計算公式（搬自 Admin.dc.html）。資料都在 D1：讀 app/lib/db/admin.server.ts，寫 workers/api/admin.ts。
 
-import type { CategoryId, ProductKind } from '~/lib/catalog'
+import type { Category, CategoryId, ProductKind } from '~/lib/catalog'
 
 /** 台灣時間的今天 YYYY-MM-DD；往前 n 天 */
 export const taipeiDate = (daysAgo = 0) =>
@@ -82,23 +82,27 @@ export const CURRENCIES: { code: Currency; label: string }[] = [
 export const currencyLabel = (c: Currency) =>
   CURRENCIES.find((x) => x.code === c)?.label ?? c
 
-/** 品牌預設進貨幣別 */
-const BRAND_CUR: Record<string, Currency> = {
-  'A.P.C.': 'EUR',
-  'ACNE STUDIOS': 'EUR',
-  'Estée Lauder': 'USD',
-  'Maison Margiela': 'EUR',
-  'The North Face': 'JPY',
-  'Urban Sophistication': 'USD',
-  Burberry: 'GBP',
-  DIOR: 'EUR',
-  GOYARD: 'EUR',
-  JACQUEMUS: 'EUR',
-  Jellycat: 'GBP',
-  Marimekko: 'EUR',
+// ── 分類與品牌（後台「分類品牌」頁） ─────────────────
+
+export type AdminCategory = Category & {
+  /** 停用：前台不顯示、上架商品不能選 */
+  active: boolean
+  /** 商品數（含下架） */
+  count: number
+  /** 上架中的商品數；有上架商品的分類不能停用 */
+  live: number
 }
-export const brandCurrency = (brand: string): Currency =>
-  BRAND_CUR[brand] ?? 'EUR'
+
+export type AdminBrand = {
+  id: number
+  name: string
+  origin: string
+  blurb: string
+  /** 預設進貨幣別 */
+  currency: Currency
+  /** 商品數（含下架）；有商品的品牌不能刪 */
+  count: number
+}
 
 // ── 商品 ─────────────────────────────────────────────
 

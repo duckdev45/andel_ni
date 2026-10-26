@@ -1,6 +1,8 @@
 import type { CategoryId, ProductKind } from '~/lib/catalog'
 
 import {
+  type AdminBrand,
+  type AdminCategory,
   type AdminProduct,
   type Currency,
   LEDGER_DEFAULTS,
@@ -53,32 +55,46 @@ type PurchaseRow = {
 }
 
 export async function loadAdmin(db: D1Database) {
-  const [products, variants, images, settings, purchases] = await db.batch([
-    db.prepare(
-      `SELECT p.id, p.code, p.name, b.name AS brand, c.slug AS category,
+  const [products, variants, images, settings, purchases, categories, brands] =
+    await db.batch([
+      db.prepare(
+        `SELECT p.id, p.code, p.name, b.name AS brand, c.slug AS category,
               p.price, p.type, p.status, p.is_new, p.description, p.option_name
        FROM products p
        JOIN brands b ON b.id = p.brand_id
        JOIN categories c ON c.id = p.category_id
        ORDER BY p.created_at DESC, p.id DESC`
-    ),
-    db.prepare(
-      `SELECT product_id, option_label, sku, stock FROM product_variants
+      ),
+      db.prepare(
+        `SELECT product_id, option_label, sku, stock FROM product_variants
        WHERE active = 1 ORDER BY product_id, sort`
-    ),
-    db.prepare(
-      `SELECT product_id, r2_key FROM product_images ORDER BY product_id, sort`
-    ),
-    db
-      .prepare(`SELECT key, value FROM settings WHERE key IN (?1, ?2)`)
-      .bind(LOW_STOCK_KEY, LEDGER_KEY),
-    db.prepare(
-      `SELECT pu.id, pu.purchased_on, v.product_id, v.option_label, pu.qty,
+      ),
+      db.prepare(
+        `SELECT product_id, r2_key FROM product_images ORDER BY product_id, sort`
+      ),
+      db
+        .prepare(`SELECT key, value FROM settings WHERE key IN (?1, ?2)`)
+        .bind(LOW_STOCK_KEY, LEDGER_KEY),
+      db.prepare(
+        `SELECT pu.id, pu.purchased_on, v.product_id, v.option_label, pu.qty,
               pu.currency, pu.foreign_price, pu.fx_rate, pu.card_fee_rate, pu.note
        FROM purchases pu JOIN product_variants v ON v.id = pu.variant_id
        ORDER BY pu.purchased_on DESC, pu.id DESC`
-    ),
-  ])
+      ),
+      db.prepare(
+        `SELECT c.slug AS id, c.name, c.name_en AS en, c.coming_soon, c.active,
+              COUNT(p.id) AS count,
+              COUNT(CASE WHEN p.status = 'active' THEN 1 END) AS live
+       FROM categories c LEFT JOIN products p ON p.category_id = c.id
+       GROUP BY c.id ORDER BY c.sort, c.id`
+      ),
+      db.prepare(
+        `SELECT b.id, b.name, COALESCE(b.origin, '') AS origin,
+              COALESCE(b.blurb, '') AS blurb, b.currency, COUNT(p.id) AS count
+       FROM brands b LEFT JOIN products p ON p.brand_id = b.id
+       GROUP BY b.id ORDER BY b.name COLLATE NOCASE`
+      ),
+    ])
   const vs = variants.results as VariantRow[]
   const is = images.results as ImageRow[]
   const st = new Map(
@@ -89,8 +105,20 @@ export async function loadAdmin(db: D1Database) {
   )
   const lowAt = st.get(LOW_STOCK_KEY)
 
+  type CategoryRow = Omit<AdminCategory, 'active' | 'comingSoon'> & {
+    active: number
+    coming_soon: number
+  }
   return {
     lowAt: lowAt ? Number(lowAt) : null,
+    categories: (categories.results as CategoryRow[]).map(
+      ({ active, coming_soon, ...c }): AdminCategory => ({
+        ...c,
+        active: active === 1,
+        comingSoon: coming_soon === 1,
+      })
+    ),
+    brands: brands.results as AdminBrand[],
     // 預設值墊底：之後新增的設定項目也有值
     settings: {
       ...LEDGER_DEFAULTS,

@@ -12,7 +12,6 @@ import {
 } from '~/components/ui/select'
 import {
   type AdminProduct,
-  brandCurrency,
   CURRENCIES,
   type Currency,
   foreign,
@@ -27,16 +26,18 @@ import { cn } from '~/lib/utils'
 import { useAdmin } from './admin-store'
 import { AdminSwitch, Field, FIELD, PANEL } from './parts'
 
-const defaults = (p: AdminProduct, opt: null | string, st: LedgerSettings) => {
-  const cur = brandCurrency(p.brand)
-  return {
-    pid: p.id,
-    opt: opt ?? p.variants?.options[0]?.label ?? null,
-    cur,
-    rate: String(st.rates[cur]),
-    fx: cur === 'TWD' ? '0' : String(st.cardFx),
-  }
-}
+const defaults = (
+  p: AdminProduct,
+  opt: null | string,
+  st: LedgerSettings,
+  cur: Currency
+) => ({
+  pid: p.id,
+  opt: opt ?? p.variants?.options[0]?.label ?? null,
+  cur,
+  rate: String(st.rates[cur]),
+  fx: cur === 'TWD' ? '0' : String(st.cardFx),
+})
 
 export function PurchaseSheetBody({
   pid,
@@ -45,20 +46,20 @@ export function PurchaseSheetBody({
   pid: null | string
   opt: null | string
 }) {
-  const { products, settings, addPurchase, closeSheet } = useAdmin()
+  const { products, settings, addPurchase, brandCurrency, closeSheet } =
+    useAdmin()
   const ids = useId()
-  const [d, setD] = useState(() => ({
-    date: taipeiDate(),
-    qty: '',
-    unit: '',
-    note: '',
-    toStock: true,
-    ...defaults(
-      products.find((p) => p.id === pid) ?? products[0],
-      opt,
-      settings
-    ),
-  }))
+  const [d, setD] = useState(() => {
+    const p = products.find((x) => x.id === pid) ?? products[0]
+    return {
+      date: taipeiDate(),
+      qty: '',
+      unit: '',
+      note: '',
+      toStock: true,
+      ...defaults(p, opt, settings, brandCurrency(p.brand)),
+    }
+  })
   const [err, setErr] = useState<Record<string, boolean>>({})
   const set = (patch: Partial<typeof d>) => setD((x) => ({ ...x, ...patch }))
   const product = products.find((p) => p.id === d.pid)
@@ -104,7 +105,7 @@ export function PurchaseSheetBody({
             value={d.pid}
             onValueChange={(v) => {
               const p = products.find((x) => x.id === v)
-              if (p) set(defaults(p, null, settings))
+              if (p) set(defaults(p, null, settings, brandCurrency(p.brand)))
             }}
           >
             <SelectTrigger

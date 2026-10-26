@@ -1,7 +1,7 @@
-// ponytail: 後端還沒接，先用設計稿的假資料；之後換成 /api/products 回傳同樣形狀即可。
+// 前台商品型別與工具；PRODUCTS 是設計稿的示範資料，只給 scripts/seed.ts 與 404 頁推薦用。
 
-export type CategoryId =
-  'acc' | 'bag' | 'beauty' | 'doll' | 'home' | 'rtw' | 'shoes' | 'slg'
+/** 分類代碼（categories.slug，例 bag）；分類與品牌在後台維護（D1） */
+export type CategoryId = string
 
 /** 現貨 / 部分現貨（部分規格有現貨）/ 代購・客訂（下單後海外採購，不適用鑑賞期） */
 export type ProductKind = '代購' | '客訂' | '現貨' | '部分現貨'
@@ -25,7 +25,7 @@ export type Product = {
   sku: string
   name: string
   brand: string
-  cat: Exclude<CategoryId, 'home'>
+  cat: CategoryId
   price: number
   kind: ProductKind
   isNew: boolean
@@ -40,49 +40,19 @@ export type Product = {
   specs: [string, string][]
 }
 
+/** 品牌介紹（首頁品牌 A–Z、商品頁品牌卡） */
+export type Brand = {
+  name: string
+  origin: null | string
+  blurb: null | string
+}
+
 export type Category = {
   id: CategoryId
   name: string
   en: string
-  comingSoon?: boolean
+  comingSoon: boolean
 }
-
-export const CATEGORIES: Category[] = [
-  { id: 'bag', name: '包包', en: 'Bags' },
-  { id: 'slg', name: '小皮件', en: 'Small Leather Goods' },
-  { id: 'acc', name: '飾品', en: 'Accessories' },
-  { id: 'rtw', name: '衣服褲子', en: 'Ready-to-wear' },
-  { id: 'shoes', name: '鞋子', en: 'Shoes' },
-  { id: 'doll', name: '娃娃', en: 'Plush' },
-  { id: 'beauty', name: '彩妝保養', en: 'Beauty' },
-  { id: 'home', name: '家飾', en: 'Coming soon', comingSoon: true },
-]
-
-export const BRANDS: { name: string; origin: string; blurb?: string }[] = [
-  { name: 'A.P.C.', origin: '法國' },
-  { name: 'ACNE STUDIOS', origin: '瑞典' },
-  { name: 'AMI PARIS', origin: '法國' },
-  { name: 'Balenciaga', origin: '法國' },
-  { name: 'Bottega Veneta', origin: '義大利' },
-  { name: 'Burberry', origin: '英國' },
-  { name: 'CHANEL', origin: '法國' },
-  { name: 'DIOR', origin: '法國' },
-  {
-    name: 'GOYARD',
-    origin: '法國',
-    blurb: '1853 年創立於巴黎的行李箱品牌，以 Goyardine 印花聞名。',
-  },
-  { name: 'Jellycat', origin: '英國' },
-  { name: 'LEMAIRE', origin: '法國' },
-  { name: 'LOEWE', origin: '西班牙' },
-  { name: 'Maison Margiela', origin: '法國' },
-  { name: 'MIU MIU', origin: '義大利' },
-  { name: 'PRADA', origin: '義大利' },
-  { name: 'Saint Laurent', origin: '法國' },
-  { name: 'Steiff', origin: '德國' },
-  { name: 'TOTEME', origin: '瑞典' },
-  { name: 'Vivienne Westwood', origin: '英國' },
-]
 
 const COMMON_SPECS = (
   material: string,
@@ -478,9 +448,6 @@ export const formatPrice = (n: number) => `NT$ ${n.toLocaleString('en-US')}`
 
 export const isCustomOrder = (p: Pick<Product, 'kind'>) =>
   p.kind === '代購' || p.kind === '客訂'
-
-export const categoryName = (id: CategoryId) =>
-  CATEGORIES.find((c) => c.id === id)?.name ?? ''
 
 export const getProduct = (id: string) => PRODUCTS.find((p) => p.id === id)
 

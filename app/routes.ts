@@ -32,6 +32,7 @@ export default [
       index('routes/admin/dashboard.tsx'),
       route('orders', 'routes/admin/orders.tsx'),
       route('products', 'routes/admin/products.tsx'),
+      route('catalog', 'routes/admin/catalog.tsx'),
       route('stock', 'routes/admin/stock.tsx'),
       route('ledger', 'routes/admin/ledger.tsx'),
     ]),

@@ -3,9 +3,12 @@ import { useRevalidator } from 'react-router'
 import { toast } from 'sonner'
 
 import {
+  type AdminBrand,
+  type AdminCategory,
   type AdminOrder,
   type AdminProduct,
   canTransition,
+  type Currency,
   type LedgerSettings,
   LOW_STOCK_DEFAULT,
   type OrderStatus,
@@ -21,6 +24,8 @@ export type SheetState =
   | { opt: null | string; pid: null | string; type: 'purchase' }
 
 export type AdminData = {
+  brands: AdminBrand[]
+  categories: AdminCategory[]
   lowAt: null | number
   orders: AdminOrder[]
   products: AdminProduct[]
@@ -29,6 +34,8 @@ export type AdminData = {
 }
 
 type Db = {
+  brands: AdminBrand[]
+  categories: AdminCategory[]
   lowAt: number
   orders: AdminOrder[]
   products: AdminProduct[]
@@ -230,6 +237,46 @@ function useAdminState(data: AdminData) {
       /** 設定欄位離開時存檔 */
       saveSettings() {
         api('/settings/ledger', 'PUT', db.settings).catch(fail)
+      },
+      /** 品牌預設進貨幣別；新品牌用歐元 */
+      brandCurrency(name: string): Currency {
+        return db.brands.find((b) => b.name === name)?.currency ?? 'EUR'
+      },
+      /** 新增（slug 為 null 時用 input.slug）或更新分類；失敗時丟出錯誤 */
+      async saveCategory(
+        slug: null | string,
+        input: Pick<AdminCategory, 'active' | 'comingSoon' | 'en' | 'name'> & {
+          slug?: string
+        }
+      ) {
+        await api(
+          slug ? `/categories/${slug}` : '/categories',
+          slug ? 'PUT' : 'POST',
+          input
+        )
+        await revalidator.revalidate()
+      },
+      /** 上移（-1）或下移（+1） */
+      moveCategory(slug: string, dir: -1 | 1) {
+        const list = [...db.categories]
+        const i = list.findIndex((c) => c.id === slug)
+        const j = i + dir
+        if (i < 0 || j < 0 || j >= list.length) return
+        ;[list[i], list[j]] = [list[j], list[i]]
+        setDb((d) => ({ ...d, categories: list }))
+        api('/categories', 'PUT', { order: list.map((c) => c.id) }).catch(fail)
+      },
+      /** 新增（id 為 null）或更新品牌；失敗時丟出錯誤 */
+      async saveBrand(
+        id: null | number,
+        input: Omit<AdminBrand, 'count' | 'id'>
+      ) {
+        await api(id ? `/brands/${id}` : '/brands', id ? 'PUT' : 'POST', input)
+        await revalidator.revalidate()
+      },
+      async deleteBrand(id: number) {
+        await api(`/brands/${id}`, 'DELETE')
+        await revalidator.revalidate()
       },
       setLowAt(n: number) {
         const lowAt = Math.max(0, n)

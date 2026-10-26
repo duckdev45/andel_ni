@@ -4,7 +4,6 @@ import { Link } from 'react-router'
 
 import { useCart } from '~/lib/cart'
 import {
-  categoryName,
   formatPrice,
   isCustomOrder,
   isSoldOut,
@@ -12,9 +11,11 @@ import {
   productNo,
   productPath,
 } from '~/lib/catalog'
+import { useCategoryName } from '~/lib/categories'
 import { cn } from '~/lib/utils'
 
-const TONE: Record<Product['cat'], string> = {
+// 照片載入前的底色；後台新增的分類用 bg-tone-object
+const TONE: Record<string, string> = {
   bag: 'bg-tone-table',
   slg: 'bg-tone-scent',
   acc: 'bg-tone-object',
@@ -36,6 +37,7 @@ function stockNote(p: Product) {
 /** 型錄格線卡片：外框由父層 grid 的 border-l / border-t 搭配本身的 border-r / border-b 組成 */
 export function ProductCard({ product: p }: { product: Product }) {
   const { add, wish, toggleWish } = useCart()
+  const categoryName = useCategoryName()
   const [added, setAdded] = useState(false)
   const soldOut = isSoldOut(p)
   const custom = isCustomOrder(p)
@@ -57,7 +59,7 @@ export function ProductCard({ product: p }: { product: Product }) {
       <Link
         className={cn(
           'relative block aspect-square overflow-hidden',
-          TONE[p.cat]
+          TONE[p.cat] ?? 'bg-tone-object'
         )}
         aria-label={p.name}
         to={href}

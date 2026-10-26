@@ -13,7 +13,6 @@ import {
   SearchField,
 } from '~/components/admin/parts'
 import { type AdminProduct, avgCost, money, stockOf } from '~/lib/admin'
-import { categoryName } from '~/lib/catalog'
 import { imageUrl } from '~/lib/images'
 import { cn } from '~/lib/utils'
 
@@ -28,7 +27,10 @@ const FILTERS = {
 type Filter = keyof typeof FILTERS
 
 export default function Products() {
-  const { products, purchases, lowAt, openSheet, toggleActive } = useAdmin()
+  const { categories, products, purchases, lowAt, openSheet, toggleActive } =
+    useAdmin()
+  const categoryName = (id: string) =>
+    categories.find((c) => c.id === id)?.name ?? id
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
 

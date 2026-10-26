@@ -3,6 +3,9 @@ import { test } from 'node:test'
 
 import {
   assignSkus,
+  CATEGORY_SLUG,
+  parseBrandInput,
+  parseCategoryInput,
   parseLedgerSettings,
   parseProductInput,
   parsePurchaseInput,
@@ -36,7 +39,8 @@ test('parseProductInput：擋下不合法的欄位', () => {
   assert.ok(bad({ name: ' ' }))
   assert.ok(bad({ price: 0 }))
   assert.ok(bad({ price: 1.5 }))
-  assert.ok(bad({ cat: 'car' }))
+  assert.ok(bad({ cat: 'Bag!' }))
+  assert.ok(bad({ cat: 7 }))
   assert.ok(bad({ type: '預購' }))
   assert.ok(bad({ images: ['https://evil.example/x.webp'] }))
   assert.ok(bad({ images: ['products/../secret.webp'] }))
@@ -120,4 +124,23 @@ test('parseLedgerSettings：合法通過、多餘欄位丟掉、缺欄位或負�
   )
   const { atm: _, ...noAtm } = ledger.payFee
   assert.equal(parseLedgerSettings({ ...ledger, payFee: noAtm }), null)
+})
+
+test('分類代碼、分類與品牌輸入', () => {
+  assert.ok(CATEGORY_SLUG.test('home'))
+  assert.ok(CATEGORY_SLUG.test('bag2'))
+  for (const bad of ['b', 'Bag', '2bag', 'bag-x', 'abcdefghijklm'])
+    assert.ok(!CATEGORY_SLUG.test(bad), bad)
+
+  const c = parseCategoryInput({ name: ' 家飾 ', en: 'Home', comingSoon: true })
+  assert.deepEqual(c, {
+    value: { name: '家飾', en: 'Home', comingSoon: true, active: true },
+  })
+  assert.ok('error' in parseCategoryInput({ name: '', en: 'Home' }))
+
+  const brand = { name: ' GOYARD ', origin: '法國', blurb: '', currency: 'EUR' }
+  const b = parseBrandInput(brand)
+  assert.ok('value' in b && b.value.name === 'GOYARD')
+  assert.ok('error' in parseBrandInput({ ...brand, currency: 'CNY' }))
+  assert.ok('error' in parseBrandInput({ ...brand, blurb: 'x'.repeat(301) }))
 })

@@ -1,10 +1,6 @@
 // 後台商品表單的伺服器端檢查與 SKU 產生（純函式，方便測試）。
 
-import {
-  CATEGORIES,
-  type CategoryId,
-  type ProductKind,
-} from '../../app/lib/catalog.ts'
+import type { CategoryId, ProductKind } from '../../app/lib/catalog.ts'
 
 export const MAX_IMAGES = 8
 const KINDS: ProductKind[] = ['現貨', '部分現貨', '代購', '客訂']
@@ -26,6 +22,9 @@ export type ProductInput = {
   variants: null | { name: string; options: { label: string; stock: number }[] }
 }
 
+/** 分類代碼：小寫英數，會出現在 SKU（GOY-SLG-AN0016），建立後不能改 */
+export const CATEGORY_SLUG = /^[a-z][a-z0-9]{1,11}$/
+
 const count = (v: unknown) =>
   Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 1e7
 const text = (v: unknown, max: number) =>
@@ -37,7 +36,9 @@ export function parseProductInput(
   const b = (body ?? {}) as Record<string, unknown>
   if (!text(b.name, 200)) return { error: '請輸入商品名稱' }
   if (!text(b.brand, 100)) return { error: '請輸入品牌' }
-  if (!CATEGORIES.some((c) => c.id === b.cat)) return { error: '分類不正確' }
+  // 分類是否存在、停用與否由路由查 D1
+  if (typeof b.cat !== 'string' || !CATEGORY_SLUG.test(b.cat))
+    return { error: '分類不正確' }
   if (!count(b.price) || b.price === 0) return { error: '請輸入售價' }
   if (!KINDS.includes(b.type as ProductKind)) return { error: '類型不正確' }
   if (typeof b.description !== 'string' || b.description.length > 5000)
@@ -210,4 +211,57 @@ export function parseLedgerSettings(body: unknown) {
   if (!payFee || !shipCost || !rates || !money(b.pack) || !pct(b.cardFx))
     return null
   return { payFee, pack: b.pack, shipCost, cardFx: b.cardFx, rates }
+}
+
+// ── 分類、品牌 ──────────────────────────────────────
+
+export type CategoryInput = {
+  name: string
+  en: string
+  comingSoon: boolean
+  active: boolean
+}
+
+export function parseCategoryInput(
+  body: unknown
+): { error: string } | { value: CategoryInput } {
+  const b = (body ?? {}) as Record<string, unknown>
+  if (!text(b.name, 20)) return { error: '請輸入分類名稱' }
+  if (!text(b.en, 40)) return { error: '請輸入英文名稱' }
+  return {
+    value: {
+      name: (b.name as string).trim(),
+      en: (b.en as string).trim(),
+      comingSoon: b.comingSoon === true,
+      active: b.active !== false,
+    },
+  }
+}
+
+export type BrandInput = {
+  name: string
+  origin: string
+  blurb: string
+  currency: (typeof CURRENCIES)[number]
+}
+
+export function parseBrandInput(
+  body: unknown
+): { error: string } | { value: BrandInput } {
+  const b = (body ?? {}) as Record<string, unknown>
+  if (!text(b.name, 100)) return { error: '請輸入品牌名稱' }
+  if (typeof b.origin !== 'string' || b.origin.length > 20)
+    return { error: '產地最多 20 字' }
+  if (typeof b.blurb !== 'string' || b.blurb.length > 300)
+    return { error: '品牌介紹最多 300 字' }
+  if (!CURRENCIES.includes(b.currency as BrandInput['currency']))
+    return { error: '幣別不正確' }
+  return {
+    value: {
+      name: (b.name as string).trim(),
+      origin: b.origin.trim(),
+      blurb: b.blurb.trim(),
+      currency: b.currency as BrandInput['currency'],
+    },
+  }
 }
