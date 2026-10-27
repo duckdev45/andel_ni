@@ -9,7 +9,7 @@
 - D1 schema 在 `migrations/`（規格第 8 節）；商品讀取 `app/lib/db/products.server.ts`（loader 與 API 共用）。
 - 已接 D1：首頁、商品頁、sitemap、`/api/products`、後台商品與庫存（讀 `app/lib/db/admin.server.ts`，寫 `workers/api/admin.ts`）。照片存 R2（binding `IMAGES`，網址 `imageUrl()`）。會員（註冊、登入、session 在 D1，`useUser()` 讀 root loader，`useAuth()` 呼叫 `/api/auth/*`；尚無 Email 驗證）。購物車（訪客 localStorage、會員 D1 `carts`，登入時合併；`app/lib/cart.tsx`）。下單與會員訂單（`/api/orders`、`app/lib/db/orders.server.ts`；逾時取消靠 Worker 排程）。綠界付款（`/api/payments/*`，規格 6.3；本機與 staging 用綠界測試特店）。後台訂單（列表、改狀態、取消／退回放回現貨庫存、包材費；`PATCH /api/admin/orders/:no`）、進貨（`purchases`）、記帳設定（`settings` 的 `ledger`）、分類與品牌（`/admin/catalog`；前台分類由 root loader 讀，`useCategories()`）；後台型別與損益公式在 `app/lib/admin.ts`。仍是假資料：收件資訊、超商門市選擇（`app/lib/mock/*`）；`app/lib/catalog.ts` 只剩型別、工具與種子資料來源。
 - 環境：正式 `andelni`（main，andelni.com）、staging `andelni-staging`（dev，staging.andelni.com），見規格 11.2、11.4。照片網址依環境走 `img.andelni.com`／`img-staging.andelni.com`，本機走 `/img/`（`vite.config.ts`）。
-- 後台存取保護：密碼＋驗證器 App，在 Worker 層（`workers/auth/admin.ts`）；設定 `pnpm admin:setup`，規劃見 `docs/後台存取保護.md`。
+- 後台存取保護：密碼＋Email 驗證碼（Resend，`workers/mail.ts`），在 Worker 層（`workers/auth/admin.ts`）；設定 `pnpm admin:setup`，規劃見 `docs/後台存取保護.md`。
 - UI：Tailwind v4 + shadcn/ui（`app/components/ui`，直角）。色票、字體 token 在 `app/app.css`。
 
 ## 目錄
