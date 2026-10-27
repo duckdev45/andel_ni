@@ -6,6 +6,7 @@
     "workers/api/admin-input*.ts",
     "workers/api/order-input*.ts",
     "workers/api/ecpay*.ts",
+    "workers/mail.ts",
     "scripts/**/*.ts",
     "app/lib/catalog.ts"
   ],
